@@ -213,4 +213,4 @@ The test target (`easemoTests`) covers the pure-Swift modules:
 
 ---
 
-© 2026 easemo. Built with Swift, SwiftUI, AVFoundation, and ScreenCaptureKit.
+© 2026 Liliia Ivanova. Built with Swift, SwiftUI, AVFoundation, and ScreenCaptureKit.
