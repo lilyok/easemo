@@ -68,7 +68,7 @@ public final class RecordingManager: NSObject, ObservableObject {
     private var streamOutput: ScreenStreamOutput?
     #endif
 
-    public init(outputDirectory: URL = FileManager.default.temporaryDirectory) {
+    nonisolated public init(outputDirectory: URL = FileManager.default.temporaryDirectory) {
         self.outputDirectory = outputDirectory
         super.init()
     }
@@ -93,7 +93,24 @@ public final class RecordingManager: NSObject, ObservableObject {
                 throw RecordingError.noDisplayAvailable
             }
 
-            let filter = SCContentFilter(display: display, excludingWindows: [])
+            // Exclude our own app entirely from screen capture whenever possible.
+            // Floating panels (PiP webcam) sometimes do not appear in `content.windows`
+            // with correct ownership — then excluding window IDs alone still records the
+            // PiP, and export composites the camera again → duplicated face in output.
+            let filter: SCContentFilter
+            if let bundleIdentifier = Bundle.main.bundleIdentifier,
+               let ownApp = content.applications.first(where: { $0.bundleIdentifier == bundleIdentifier }) {
+                filter = SCContentFilter(display: display,
+                                         excludingApplications: [ownApp],
+                                         exceptingWindows: [])
+            } else if let bundleIdentifier = Bundle.main.bundleIdentifier {
+                let ownWindows = content.windows.filter { window in
+                    window.owningApplication?.bundleIdentifier == bundleIdentifier
+                }
+                filter = SCContentFilter(display: display, excludingWindows: ownWindows)
+            } else {
+                filter = SCContentFilter(display: display, excludingWindows: [])
+            }
             let config = SCStreamConfiguration()
             let scale = Int(NSScreen.main?.backingScaleFactor ?? 1)
             config.width = display.width * scale

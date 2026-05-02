@@ -142,6 +142,7 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing {
 final class OverlayInstruction: NSObject, AVVideoCompositionInstructionProtocol {
 
     let screenTrackID: CMPersistentTrackID
+    /// When `nil`, the PiP overlay is skipped for this slice; camera frames may still be listed in `requiredSourceTrackIDs`.
     let cameraTrackID: CMPersistentTrackID?
     let cameraFrame: CGRect
     let shape: OverlayShape
@@ -152,19 +153,24 @@ final class OverlayInstruction: NSObject, AVVideoCompositionInstructionProtocol 
     let requiredSourceTrackIDs: [NSValue]?
     let passthroughTrackID: CMPersistentTrackID = kCMPersistentTrackID_Invalid
 
+    /// - Parameters:
+    ///   - compositionCameraTrackID: When set, IDs are appended to **every** slice’s `requiredSourceTrackIDs`.
+    ///     Keeping decoder inputs stable across slices avoids intermittent black video with custom compositors.
+    ///   - overlayCameraCompositionTrackID: Track used for overlay sampling (`nil` = hide overlay this slice).
     init(timeRange: CMTimeRange,
          screenTrackID: CMPersistentTrackID,
-         cameraTrackID: CMPersistentTrackID?,
+         compositionCameraTrackID: CMPersistentTrackID?,
+         overlayCameraCompositionTrackID: CMPersistentTrackID?,
          cameraFrame: CGRect,
          shape: OverlayShape) {
         self.timeRange = timeRange
         self.screenTrackID = screenTrackID
-        self.cameraTrackID = cameraTrackID
+        self.cameraTrackID = overlayCameraCompositionTrackID
         self.cameraFrame = cameraFrame
         self.shape = shape
         var ids: [NSValue] = [NSNumber(value: screenTrackID)]
-        if let cameraTrackID = cameraTrackID {
-            ids.append(NSNumber(value: cameraTrackID))
+        if let compositionCameraTrackID {
+            ids.append(NSNumber(value: compositionCameraTrackID))
         }
         self.requiredSourceTrackIDs = ids
     }

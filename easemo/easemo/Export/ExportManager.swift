@@ -25,7 +25,7 @@ public final class ExportManager: ObservableObject {
     private var session: AVAssetExportSession?
     private var pollTimer: Timer?
 
-    public init() {}
+    nonisolated public init() {}
 
     /// Export the supplied composition to `outputURL`.
     /// - Parameters:

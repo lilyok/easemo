@@ -52,8 +52,10 @@ public final class CameraManager: NSObject, ObservableObject {
     /// read it without bouncing to the main actor for every frame.
     nonisolated private let sampleHandlerRef = LockedRef<CameraSampleHandler>()
     private(set) public var startTime: CMTime = .zero
+    private(set) public var lastRecordingURL: URL?
+    private var activeRecordingURL: URL?
 
-    public init(outputDirectory: URL = FileManager.default.temporaryDirectory) {
+    nonisolated public init(outputDirectory: URL = FileManager.default.temporaryDirectory) {
         self.outputDirectory = outputDirectory
         super.init()
     }
@@ -128,12 +130,18 @@ public final class CameraManager: NSObject, ObservableObject {
         }
         sampleHandlerRef.value = handler
         state = .recording
+        activeRecordingURL = url
         return url
     }
 
     @discardableResult
     public func stopRecording() async throws -> URL {
         guard state == .recording, let handler = sampleHandlerRef.value else {
+            if let fallbackURL = activeRecordingURL {
+                lastRecordingURL = fallbackURL
+                activeRecordingURL = nil
+                return fallbackURL
+            }
             throw CameraError.underlying("Camera is not recording.")
         }
         state = .preview
@@ -142,8 +150,18 @@ public final class CameraManager: NSObject, ObservableObject {
             handler.writer.finish { result in
                 Task { @MainActor in
                     switch result {
-                    case .success(let url): continuation.resume(returning: url)
-                    case .failure(let error): continuation.resume(throwing: error)
+                    case .success(let url):
+                        self.lastRecordingURL = url
+                        self.activeRecordingURL = nil
+                        continuation.resume(returning: url)
+                    case .failure(let error):
+                        if let fallbackURL = self.activeRecordingURL {
+                            self.lastRecordingURL = fallbackURL
+                            self.activeRecordingURL = nil
+                            continuation.resume(returning: fallbackURL)
+                        } else {
+                            continuation.resume(throwing: error)
+                        }
                     }
                 }
             }

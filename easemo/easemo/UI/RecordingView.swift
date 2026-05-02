@@ -5,6 +5,7 @@ import SwiftUI
 struct RecordingView: View {
     @EnvironmentObject private var appState: AppState
     @State private var isPreviewReady = false
+    @State private var dragStartCenter: CGPoint?
 
     private var coordinator: CaptureSessionCoordinator { appState.coordinator }
 
@@ -29,7 +30,7 @@ struct RecordingView: View {
                 isPreviewReady = true
             }
         }
-        .onChange(of: appState.configuration.includeCamera) { _, newValue in
+        .onChange(of: appState.configuration.includeCamera, perform: { newValue in
             Task {
                 if newValue {
                     try? await coordinator.cameraManager.startPreview()
@@ -39,7 +40,7 @@ struct RecordingView: View {
                     isPreviewReady = false
                 }
             }
-        }
+        })
     }
 
     private var background: some View {
@@ -96,15 +97,24 @@ struct RecordingView: View {
 
             if appState.configuration.includeCamera {
                 HStack(spacing: 16) {
-                    Picker("Shape", selection: $appState.overlay.shape) {
+                    HStack(spacing: 8) {
+                        Text("Shape")
+                            .foregroundStyle(.white.opacity(0.85))
                         ForEach(OverlayShape.allCases) { shape in
-                            Text(shape.displayName).tag(shape)
+                            Button(shape.displayName) {
+                                appState.overlay.shape = shape
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(shape == appState.overlay.shape ? .white : .white.opacity(0.15))
+                            .foregroundStyle(shape == appState.overlay.shape ? .black : .white)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         }
                     }
-                    .pickerStyle(.segmented)
-                    .frame(width: 200)
+                    .frame(width: 250, alignment: .leading)
 
-                    Picker("Position", selection: $appState.overlay.position) {
+                    Picker("Position", selection: overlayPositionBinding) {
                         ForEach(OverlayPosition.allCases) { p in
                             Text(p.displayName).tag(p)
                         }
@@ -120,6 +130,10 @@ struct RecordingView: View {
                         .monospacedDigit()
                         .foregroundStyle(.white.opacity(0.7))
                 }
+
+                Text("Tip: drag the webcam preview to place it anywhere.")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.65))
             }
         }
         .padding(20)
@@ -135,25 +149,64 @@ struct RecordingView: View {
             GeometryReader { proxy in
                 let canvas = proxy.size
                 let frame = appState.overlay.frame(in: canvas, cameraAspect: 16.0/9.0)
-                CameraPreviewView(session: coordinator.cameraManager.session,
-                                  shape: appState.overlay.shape)
-                    .frame(width: frame.width, height: frame.height)
-                    .clipShape(overlayShape)
-                    .overlay(overlayShape.stroke(Color.white.opacity(0.6), lineWidth: 2))
-                    .position(x: frame.midX, y: frame.midY)
-                    .shadow(radius: 12)
-                    .allowsHitTesting(false)
+                if appState.overlay.shape == .circle {
+                    CameraPreviewView(session: coordinator.cameraManager.session,
+                                      shape: appState.overlay.shape)
+                        .frame(width: frame.width, height: frame.height)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.white.opacity(0.6), lineWidth: 2))
+                        .position(x: frame.midX, y: frame.midY)
+                        .shadow(radius: 12)
+                        .gesture(overlayDragGesture(in: canvas, frame: frame))
+                } else {
+                    CameraPreviewView(session: coordinator.cameraManager.session,
+                                      shape: appState.overlay.shape)
+                        .frame(width: frame.width, height: frame.height)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.white.opacity(0.6), lineWidth: 2))
+                        .position(x: frame.midX, y: frame.midY)
+                        .shadow(radius: 12)
+                        .gesture(overlayDragGesture(in: canvas, frame: frame))
+                }
             }
             .ignoresSafeArea()
         }
     }
 
-    @ViewBuilder
-    private var overlayShape: some Shape {
-        switch appState.overlay.shape {
-        case .circle:    Circle()
-        case .rectangle: RoundedRectangle(cornerRadius: 12, style: .continuous)
-        }
+    private var overlayPositionBinding: Binding<OverlayPosition> {
+        Binding(
+            get: { appState.overlay.position },
+            set: { newValue in
+                appState.overlay.position = newValue
+                appState.overlay.customCenter = nil
+            }
+        )
+    }
+
+    private func overlayDragGesture(in canvas: CGSize, frame: CGRect) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                let frameCenter = CGPoint(
+                    x: frame.midX / max(canvas.width, 1),
+                    y: frame.midY / max(canvas.height, 1)
+                )
+                let base = dragStartCenter ?? appState.overlay.customCenter ?? frameCenter
+                if dragStartCenter == nil {
+                    dragStartCenter = base
+                }
+                let moved = CGPoint(
+                    x: base.x + (value.translation.width / max(canvas.width, 1)),
+                    y: base.y + (value.translation.height / max(canvas.height, 1))
+                )
+                appState.overlay.customCenter = CGPoint(
+                    x: min(max(moved.x, 0), 1),
+                    y: min(max(moved.y, 0), 1)
+                )
+            }
+            .onEnded { _ in
+                dragStartCenter = nil
+            }
     }
 
     private func onRecordButtonTapped() {

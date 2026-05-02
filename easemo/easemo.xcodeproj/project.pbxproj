@@ -18,6 +18,7 @@
 		A100000000000000000000A8 /* ExportManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000A8 /* ExportManager.swift */; };
 		A100000000000000000000A9 /* RecordingConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000A9 /* RecordingConfiguration.swift */; };
 		A100000000000000000000AA /* RecordingResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000AA /* RecordingResult.swift */; };
+		A100000000000000000000CC /* OverlayLayoutKeyframe.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000CD /* OverlayLayoutKeyframe.swift */; };
 		A100000000000000000000AB /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000AB /* RootView.swift */; };
 		A100000000000000000000AC /* RecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000AC /* RecordingView.swift */; };
 		A100000000000000000000AD /* EditingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000AD /* EditingView.swift */; };
@@ -50,6 +51,7 @@
 		B100000000000000000000A8 /* ExportManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportManager.swift; sourceTree = "<group>"; };
 		B100000000000000000000A9 /* RecordingConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingConfiguration.swift; sourceTree = "<group>"; };
 		B100000000000000000000AA /* RecordingResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingResult.swift; sourceTree = "<group>"; };
+		B100000000000000000000CD /* OverlayLayoutKeyframe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayLayoutKeyframe.swift; sourceTree = "<group>"; };
 		B100000000000000000000AB /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		B100000000000000000000AC /* RecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingView.swift; sourceTree = "<group>"; };
 		B100000000000000000000AD /* EditingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditingView.swift; sourceTree = "<group>"; };
@@ -149,6 +151,7 @@
 			children = (
 				B100000000000000000000A9 /* RecordingConfiguration.swift */,
 				B100000000000000000000AA /* RecordingResult.swift */,
+				B100000000000000000000CD /* OverlayLayoutKeyframe.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -310,6 +313,7 @@
 				A100000000000000000000A8 /* ExportManager.swift in Sources */,
 				A100000000000000000000A9 /* RecordingConfiguration.swift in Sources */,
 				A100000000000000000000AA /* RecordingResult.swift in Sources */,
+				A100000000000000000000CC /* OverlayLayoutKeyframe.swift in Sources */,
 				A100000000000000000000AB /* RootView.swift in Sources */,
 				A100000000000000000000AC /* RecordingView.swift in Sources */,
 				A100000000000000000000AD /* EditingView.swift in Sources */,

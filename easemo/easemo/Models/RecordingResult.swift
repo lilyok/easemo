@@ -18,21 +18,24 @@ public struct RecordingResult: Equatable {
     /// Duration of the screen recording. The camera recording is expected to
     /// be very close (within a frame or two) but may differ slightly.
     public let duration: CMTime
-    /// Layout used when the recording started — kept so the editing screen
-    /// can offer it as a default.
+    /// Preferred layout metadata for this take (typically last known PiP placement).
     public let layout: OverlayLayout
+    /// PiP layout over recording time — non-empty enables moving overlay in export/preview.
+    public let overlayMotion: [OverlayLayoutKeyframe]
 
     public init(screenURL: URL,
                 cameraURL: URL?,
                 canvasSize: CGSize,
                 startTime: CMTime,
                 duration: CMTime,
-                layout: OverlayLayout) {
+                layout: OverlayLayout,
+                overlayMotion: [OverlayLayoutKeyframe] = []) {
         self.screenURL = screenURL
         self.cameraURL = cameraURL
         self.canvasSize = canvasSize
         self.startTime = startTime
         self.duration = duration
         self.layout = layout
+        self.overlayMotion = overlayMotion
     }
 }

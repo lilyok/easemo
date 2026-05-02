@@ -41,9 +41,18 @@ public final class CaptureSessionCoordinator: ObservableObject {
     private var configuration: RecordingConfiguration = .init()
     private var timer: Timer?
     private var startWallClock: Date?
+    /// PiP layout keyed by elapsed recording time so export/preview can reproduce motion during capture.
+    private var overlayMotionKeyframes: [OverlayLayoutKeyframe] = []
 
-    public init(recordingManager: RecordingManager = RecordingManager(),
-                cameraManager: CameraManager = CameraManager()) {
+    @MainActor
+    public convenience init() {
+        self.init(recordingManager: RecordingManager(),
+                  cameraManager: CameraManager())
+    }
+
+    @MainActor
+    public init(recordingManager: RecordingManager,
+                cameraManager: CameraManager) {
         self.recordingManager = recordingManager
         self.cameraManager = cameraManager
     }
@@ -60,6 +69,10 @@ public final class CaptureSessionCoordinator: ObservableObject {
             try await cameraManager.startPreview()
         }
 
+        overlayMotionKeyframes = [
+            OverlayLayoutKeyframe(timeSeconds: 0, layout: configuration.overlay)
+        ]
+
         // Start screen first because it tends to take longer (permission
         // dialog, content discovery). Once it is running, kick off the
         // camera writer immediately so their start timestamps are close.
@@ -73,16 +86,46 @@ public final class CaptureSessionCoordinator: ObservableObject {
         startTimer()
     }
 
+    /// Samples current PiP layout while recording (elapsed-time axis). Debounced merges.
+    public func recordPiPLayoutSample(_ layout: OverlayLayout) {
+        guard isRecording else { return }
+        let t = max(0, elapsedSeconds)
+        if var last = overlayMotionKeyframes.last, t - last.timeSeconds < 0.075 {
+            last = OverlayLayoutKeyframe(timeSeconds: t, layout: layout)
+            overlayMotionKeyframes[overlayMotionKeyframes.count - 1] = last
+        } else {
+            overlayMotionKeyframes.append(OverlayLayoutKeyframe(timeSeconds: t, layout: layout))
+        }
+    }
+
     /// Stop both pipelines and return the produced `RecordingResult`.
+    ///
+    /// - Parameter finalOverlay: Webcam overlay as of **stop time** (`customCenter`, size, shape during recording).
+    ///   Recording started with frozen `configuration`, but PiP placement can change while capturing;
+    ///   export/preview must use this value, not the initial snapshot.
     @discardableResult
-    public func stop() async throws -> RecordingResult {
+    public func stop(finalOverlay overlay: OverlayLayout) async throws -> RecordingResult {
         guard isRecording else { throw CoordinatorError.notRunning }
         stopTimer()
+
+        recordPiPLayoutSample(overlay)
+
+        let durationSeconds = elapsedSeconds
+        let motionKeyframes = consolidateOverlayMotionKeyframes(
+            recordingDuration: max(durationSeconds, 0.05),
+            finalOverlay: overlay
+        )
+
         isRecording = false
 
         let cameraURL: URL?
         if configuration.includeCamera, cameraManager.state == .recording {
-            cameraURL = try? await cameraManager.stopRecording()
+            do {
+                cameraURL = try await cameraManager.stopRecording()
+            } catch {
+                lastErrorMessage = "Camera overlay could not be finalized: \(error.localizedDescription)"
+                cameraURL = cameraManager.lastRecordingURL
+            }
         } else {
             cameraURL = nil
         }
@@ -92,15 +135,17 @@ public final class CaptureSessionCoordinator: ObservableObject {
             cameraManager.stopPreview()
         }
 
-        let duration = CMTime(seconds: elapsedSeconds, preferredTimescale: 600)
+        let duration = CMTime(seconds: durationSeconds, preferredTimescale: 600)
         let result = RecordingResult(
             screenURL: screenURL,
             cameraURL: cameraURL,
             canvasSize: recordingManager.canvasSize,
             startTime: recordingManager.startTime,
             duration: duration,
-            layout: configuration.overlay
+            layout: overlay,
+            overlayMotion: motionKeyframes
         )
+        overlayMotionKeyframes.removeAll()
         lastResult = result
         return result
     }
@@ -122,5 +167,54 @@ public final class CaptureSessionCoordinator: ObservableObject {
     private func stopTimer() {
         timer?.invalidate()
         timer = nil
+    }
+
+    /// Collapse duplicates and freeze the timeline end at recording duration so segments fully cover `[0, D]`.
+    private func consolidateOverlayMotionKeyframes(recordingDuration: Double,
+                                                   finalOverlay: OverlayLayout) -> [OverlayLayoutKeyframe] {
+        let dur = max(recordingDuration, 0.05)
+        var keyed = overlayMotionKeyframes
+            .sorted { $0.timeSeconds < $1.timeSeconds }
+            .map { OverlayLayoutKeyframe(timeSeconds: min(max(0, $0.timeSeconds), dur), layout: $0.layout) }
+
+        guard !keyed.isEmpty else {
+            return [
+                OverlayLayoutKeyframe(timeSeconds: 0, layout: finalOverlay),
+                OverlayLayoutKeyframe(timeSeconds: dur, layout: finalOverlay)
+            ]
+        }
+
+        var out: [OverlayLayoutKeyframe] = []
+        for k in keyed where k.timeSeconds.isFinite {
+            guard let last = out.last else {
+                out.append(k)
+                continue
+            }
+            if last.layout != k.layout {
+                out.append(k)
+            }
+        }
+
+        if out.first!.timeSeconds > 0.001 {
+            out.insert(OverlayLayoutKeyframe(timeSeconds: 0, layout: out.first!.layout), at: 0)
+        }
+
+        /// Snap near-end timestamps to `dur` when needed; append a terminal change only when layout differs.
+        if let last = out.last {
+            if abs(last.timeSeconds - dur) < 1e-3 {
+                if last.layout != finalOverlay {
+                    out[out.count - 1] = OverlayLayoutKeyframe(timeSeconds: dur, layout: finalOverlay)
+                }
+            } else if last.timeSeconds < dur && last.layout != finalOverlay {
+                out.append(OverlayLayoutKeyframe(timeSeconds: dur, layout: finalOverlay))
+            }
+        } else {
+            out = [
+                OverlayLayoutKeyframe(timeSeconds: 0, layout: finalOverlay),
+                OverlayLayoutKeyframe(timeSeconds: dur, layout: finalOverlay)
+            ]
+        }
+
+        return out
     }
 }
