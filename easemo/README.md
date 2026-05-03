@@ -2,10 +2,12 @@
 
 > **easy + demo** — a lightweight, fully-local screen recording and editing tool for macOS.
 
-`easemo` records your screen and webcam at the same time, then composes them
-into a single H.264 MP4 with a configurable webcam overlay (rectangle or
-circle) and adjustable playback speed. Everything happens on-device — there is
-no network or cloud component.
+`easemo` records your screen, webcam, and microphone at the same time, then
+composes them into a single H.264 MP4 with a configurable webcam overlay
+(rectangle or circle) and adjustable playback speed. Audio is preserved with
+formant-aware time stretching, so the speaker's voice keeps its natural tone
+even at 0.5× or 2× speed. Everything happens on-device — there is no network
+or cloud component.
 
 ---
 
@@ -13,9 +15,11 @@ no network or cloud component.
 
 - **Screen recording** with [`ScreenCaptureKit`](https://developer.apple.com/documentation/screencapturekit) (main display, configurable frame rate, hardware H.264 via `AVAssetWriter`).
 - **Webcam recording** with `AVCaptureSession` + `AVCaptureVideoDataOutput`.
-- **Synchronized capture**: both pipelines start back-to-back from a shared coordinator and timestamp each track using its own clock for later alignment.
+- **Microphone recording** with a dedicated `AVCaptureSession` writing AAC to a separate `.m4a` file. Pluggable on/off.
+- **Synchronized capture**: all pipelines start back-to-back from a shared coordinator and timestamp each track using its own clock for later alignment.
 - **Post-recording composition** with a custom `AVVideoCompositing` implementation backed by Core Image — supports rectangle and circle masking and arbitrary corner placement.
-- **Playback speed adjustment** (0.5×–2.0×) via `AVMutableCompositionTrack.scaleTimeRange`. Audio (when present) stays in sync.
+- **Playback speed adjustment** (0.5×–2.0×) via `AVMutableCompositionTrack.scaleTimeRange`. Audio is rendered through an `AVAudioMix` whose `audioTimePitchAlgorithm` is set to `.spectral`, so voices sound natural (no chipmunk effect at 2×, no deep-voice effect at 0.5×).
+- **Mute / unmute audio** in the editing screen — applies to both preview and export.
 - **MP4 export** via `AVAssetExportSession` with progress reporting.
 - **SwiftUI UI** with a recording screen and an editing/export screen.
 
@@ -41,8 +45,10 @@ easemo/
     ├── Capture/
     │   ├── RecordingManager.swift     # ScreenCaptureKit pipeline
     │   ├── CameraManager.swift        # Webcam pipeline (AVCapture)
-    │   ├── CaptureSessionCoordinator.swift  # Starts/stops both pipelines
-    │   └── SampleBufferWriter.swift   # AVAssetWriter wrapper
+    │   ├── AudioRecordingManager.swift  # Microphone pipeline (AVCapture)
+    │   ├── CaptureSessionCoordinator.swift  # Starts/stops all pipelines
+    │   ├── SampleBufferWriter.swift   # AVAssetWriter wrapper (video)
+    │   └── AudioSampleWriter.swift    # AVAssetWriter wrapper (audio, AAC)
     ├── Composition/
     │   ├── VideoComposer.swift        # Builds AVMutableComposition + videoComposition
     │   └── OverlayVideoCompositor.swift  # Custom AVVideoCompositing (Core Image)
@@ -85,19 +91,24 @@ responsibility and can be tested in isolation:
 
 ```
                  ┌───────────────────────┐
-   Screen frames │   RecordingManager    │  SampleBufferWriter ── easemo-screen-*.mp4
+   Screen frames │   RecordingManager    │  SampleBufferWriter   ── easemo-screen-*.mp4
    (SCStream) ──▶│  + ScreenStreamOutput │
                  └───────────────────────┘
                                                 CaptureSessionCoordinator
                  ┌───────────────────────┐                │
-   Camera frames │    CameraManager      │  SampleBufferWriter ── easemo-camera-*.mp4
+   Camera frames │    CameraManager      │  SampleBufferWriter   ── easemo-camera-*.mp4
    (AVCapture) ─▶│  + CameraSampleHandler│                │
+                 └───────────────────────┘                │
+                 ┌───────────────────────┐                │
+   Mic samples   │ AudioRecordingManager │  AudioSampleWriter    ── easemo-audio-*.m4a
+   (AVCapture) ─▶│  + AudioSampleHandler │                │
                  └───────────────────────┘                ▼
                                                     RecordingResult
                                                           │
                                                           ▼
                                                    VideoComposer
-                                            (uses OverlayVideoCompositor)
+                                  (uses OverlayVideoCompositor for video,
+                                   AVAudioMix .spectral for pitch-preserve)
                                                           │
                                                           ▼
                                                    ExportManager  ──▶ user-selected .mp4
@@ -136,21 +147,37 @@ for both desktop demos and high-motion content.
 
 ## Composition logic
 
-`VideoComposer.compose(result:layout:speed:)`:
+`VideoComposer.compose(result:layout:speed:trimStart:trimEnd:muteAudio:)`:
 
 1. Creates an `AVMutableComposition` and inserts the screen video track
-   spanning `[0, screenDuration)`.
+   spanning `[trimStart, trimEnd)`.
 2. If the camera recording exists and the layout is visible, inserts the
-   camera video track and any audio track.
-3. Applies playback speed by calling `scaleTimeRange(_:toDuration:)` on every
+   camera video track.
+3. If the microphone recording exists, inserts its audio track over the same
+   trimmed range.
+4. Applies playback speed by calling `scaleTimeRange(_:toDuration:)` on every
    composition track. Because the same scale is applied uniformly, audio
    stays in sync.
-4. Builds an `AVMutableVideoComposition` whose render size is the screen's
+5. Builds an `AVMutableVideoComposition` whose render size is the screen's
    natural size (corrected for the screen's `preferredTransform`) and whose
-   `customVideoCompositorClass` is `OverlayVideoCompositor`. A single
-   `OverlayInstruction` carries the screen track ID, optional camera track
+   `customVideoCompositorClass` is `OverlayVideoCompositor`. The
+   `OverlayInstruction`s carry the screen track ID, optional camera track
    ID, the camera frame rect (computed via `OverlayLayout.frame(in:cameraAspect:)`)
    and the desired shape.
+6. Builds an `AVMutableAudioMix` whose sole `AVMutableAudioMixInputParameters`
+   pins `audioTimePitchAlgorithm = .spectral`. This is the formant-aware
+   time-stretch algorithm: when `scaleTimeRange` is applied to the audio
+   track to match a 0.5×–2× playback speed, the **pitch is preserved** and
+   the speaker's voice keeps its natural tone. Mute is implemented as a
+   single `setVolume(0, at: .zero)` ramp on the same parameters object.
+
+The same `audioMix` is forwarded to:
+
+- `AVPlayerItem.audioMix` for the editing-screen preview (so what you hear
+  while previewing matches the export).
+- `AVAssetExportSession.audioMix` for the final MP4. The export session also
+  sets `audioTimePitchAlgorithm = .spectral` directly as a belt-and-braces
+  default for any audio path that doesn't go through the mix.
 
 The custom compositor uses Core Image to:
 
@@ -174,8 +201,8 @@ underneath through the same mask.
 2. Select the **easemo** scheme and the **My Mac** destination.
 3. Press **⌘R** to build and run.
 4. The first time you start a recording, macOS will prompt for **Screen
-   Recording** and **Camera** access — grant both in *System Settings →
-   Privacy & Security*.
+   Recording**, **Camera**, and **Microphone** access — grant all three in
+   *System Settings → Privacy & Security*.
 5. Click the big record button. Click it again to stop. The app routes you
    straight to the editing screen.
 6. Adjust the playback speed slider, choose an overlay shape and position,
@@ -193,7 +220,8 @@ xcodebuild -project easemo/easemo.xcodeproj \
 The test target (`easemoTests`) covers the pure-Swift modules:
 
 - `OverlayLayoutTests` — overlay frame placement / clamping.
-- `AppStateTests` — elapsed-time formatter and AppState bindings.
+- `AppStateTests` — elapsed-time formatter, AppState bindings, default mic / mute state.
+- `VideoComposerAudioTests` — composer-side wiring of the `.spectral` pitch algorithm and mute behavior, exercised against synthesized fixture media (`TestMediaFixtures`).
 
 ---
 
@@ -207,9 +235,9 @@ The test target (`easemoTests`) covers the pure-Swift modules:
 ### Possible follow-ups
 
 - Background blur for the webcam (Vision / Core Image)
-- Drag-to-move overlay
 - Layout presets
-- Microphone audio capture into the screen track
+- Per-source audio mixing (system audio + microphone with separate volumes)
+- Noise suppression on the microphone track
 
 ---
 
