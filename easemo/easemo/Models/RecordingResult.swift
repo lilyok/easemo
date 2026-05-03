@@ -3,20 +3,23 @@ import Foundation
 
 /// Result of a single recording session.
 ///
-/// Holds URLs to the on-disk artifacts produced by `RecordingManager` and
-/// `CameraManager` along with the shared start timestamp the
-/// `CaptureSessionCoordinator` used for synchronization.
+/// Holds URLs to the on-disk artifacts produced by `RecordingManager`,
+/// `CameraManager`, and `AudioRecordingManager`, along with the shared start
+/// timestamp the `CaptureSessionCoordinator` used for synchronization.
 public struct RecordingResult: Equatable {
     /// File URL of the screen recording (always present).
     public let screenURL: URL
     /// File URL of the webcam recording (nil if the user disabled the camera).
     public let cameraURL: URL?
+    /// File URL of the microphone recording (nil if the user disabled audio).
+    public let audioURL: URL?
     /// Output canvas size used when recording the screen, in pixels.
     public let canvasSize: CGSize
     /// Wall-clock start timestamp used by the coordinator for alignment.
     public let startTime: CMTime
-    /// Duration of the screen recording. The camera recording is expected to
-    /// be very close (within a frame or two) but may differ slightly.
+    /// Duration of the screen recording. The camera/audio recordings are
+    /// expected to be very close (within a frame or two) but may differ
+    /// slightly because each pipeline has its own clock.
     public let duration: CMTime
     /// Preferred layout metadata for this take (typically last known PiP placement).
     public let layout: OverlayLayout
@@ -25,6 +28,7 @@ public struct RecordingResult: Equatable {
 
     public init(screenURL: URL,
                 cameraURL: URL?,
+                audioURL: URL? = nil,
                 canvasSize: CGSize,
                 startTime: CMTime,
                 duration: CMTime,
@@ -32,6 +36,7 @@ public struct RecordingResult: Equatable {
                 overlayMotion: [OverlayLayoutKeyframe] = []) {
         self.screenURL = screenURL
         self.cameraURL = cameraURL
+        self.audioURL = audioURL
         self.canvasSize = canvasSize
         self.startTime = startTime
         self.duration = duration

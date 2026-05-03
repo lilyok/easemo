@@ -117,6 +117,7 @@ public struct OverlayLayout: Equatable, Codable {
 /// composer can rely on stable values when assembling tracks afterwards.
 public struct RecordingConfiguration: Equatable {
     public var includeCamera: Bool
+    public var includeMicrophone: Bool
     public var overlay: OverlayLayout
     /// Target frame rate for the screen capture stream.
     public var screenFrameRate: Int
@@ -124,10 +125,12 @@ public struct RecordingConfiguration: Equatable {
     public var cameraFrameRate: Int
 
     public init(includeCamera: Bool = true,
+                includeMicrophone: Bool = true,
                 overlay: OverlayLayout = .default,
                 screenFrameRate: Int = 30,
                 cameraFrameRate: Int = 30) {
         self.includeCamera = includeCamera
+        self.includeMicrophone = includeMicrophone
         self.overlay = overlay
         self.screenFrameRate = screenFrameRate
         self.cameraFrameRate = cameraFrameRate

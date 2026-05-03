@@ -3,15 +3,15 @@ import Combine
 import CoreMedia
 import Foundation
 
-/// `CaptureSessionCoordinator` orchestrates the screen and camera capture
-/// pipelines as a single unit.
+/// `CaptureSessionCoordinator` orchestrates the screen, camera, and audio
+/// capture pipelines as a single unit.
 ///
 /// Responsibilities:
-/// - Start both `RecordingManager` and `CameraManager` so they share a
-///   common wall-clock origin (best-effort: ScreenCaptureKit and
-///   AVCaptureSession use independent clocks; we record both `startTime`
-///   values and let the composer align them at composition time).
-/// - Stop both pipelines and bundle their outputs in a `RecordingResult`.
+/// - Start `RecordingManager`, `CameraManager`, and `AudioRecordingManager`
+///   so they share a common wall-clock origin (best-effort: ScreenCaptureKit
+///   and AVCaptureSession use independent clocks; we record each `startTime`
+///   value and let the composer align them at composition time).
+/// - Stop all pipelines and bundle their outputs in a `RecordingResult`.
 /// - Expose a single elapsed-time publisher for the UI.
 @MainActor
 public final class CaptureSessionCoordinator: ObservableObject {
@@ -37,6 +37,7 @@ public final class CaptureSessionCoordinator: ObservableObject {
 
     public let recordingManager: RecordingManager
     public let cameraManager: CameraManager
+    public let audioManager: AudioRecordingManager
 
     private var configuration: RecordingConfiguration = .init()
     private var timer: Timer?
@@ -47,19 +48,22 @@ public final class CaptureSessionCoordinator: ObservableObject {
     @MainActor
     public convenience init() {
         self.init(recordingManager: RecordingManager(),
-                  cameraManager: CameraManager())
+                  cameraManager: CameraManager(),
+                  audioManager: AudioRecordingManager())
     }
 
     @MainActor
     public init(recordingManager: RecordingManager,
-                cameraManager: CameraManager) {
+                cameraManager: CameraManager,
+                audioManager: AudioRecordingManager = AudioRecordingManager()) {
         self.recordingManager = recordingManager
         self.cameraManager = cameraManager
+        self.audioManager = audioManager
     }
 
     // MARK: Public API
 
-    /// Start screen + (optional) camera recording.
+    /// Start screen + (optional) camera + (optional) microphone recording.
     public func start(configuration: RecordingConfiguration) async throws {
         guard !isRecording else { throw CoordinatorError.alreadyRunning }
         self.configuration = configuration
@@ -68,6 +72,17 @@ public final class CaptureSessionCoordinator: ObservableObject {
         if configuration.includeCamera {
             try await cameraManager.startPreview()
         }
+        if configuration.includeMicrophone {
+            // Audio prepare can fail on permission denied. Surface a warning
+            // and keep recording video — losing audio is preferable to losing
+            // the entire take.
+            do {
+                try await audioManager.prepare()
+            } catch {
+                lastErrorMessage = "Microphone unavailable: \(error.localizedDescription). Recording video only."
+                self.configuration.includeMicrophone = false
+            }
+        }
 
         overlayMotionKeyframes = [
             OverlayLayoutKeyframe(timeSeconds: 0, layout: configuration.overlay)
@@ -75,10 +90,19 @@ public final class CaptureSessionCoordinator: ObservableObject {
 
         // Start screen first because it tends to take longer (permission
         // dialog, content discovery). Once it is running, kick off the
-        // camera writer immediately so their start timestamps are close.
+        // camera/audio writers immediately so their start timestamps are
+        // close to the screen's first frame.
         _ = try await recordingManager.startRecording(frameRate: configuration.screenFrameRate)
         if configuration.includeCamera {
             _ = try cameraManager.startRecording(frameRate: configuration.cameraFrameRate)
+        }
+        if self.configuration.includeMicrophone {
+            do {
+                _ = try audioManager.startRecording()
+            } catch {
+                lastErrorMessage = "Microphone failed to start: \(error.localizedDescription). Recording video only."
+                self.configuration.includeMicrophone = false
+            }
         }
 
         startWallClock = Date()
@@ -129,16 +153,31 @@ public final class CaptureSessionCoordinator: ObservableObject {
         } else {
             cameraURL = nil
         }
+
+        let audioURL: URL?
+        if configuration.includeMicrophone, audioManager.state == .recording {
+            do {
+                audioURL = try await audioManager.stopRecording()
+            } catch {
+                lastErrorMessage = "Microphone audio could not be finalized: \(error.localizedDescription)"
+                audioURL = nil
+            }
+        } else {
+            audioURL = nil
+        }
+
         let screenURL = try await recordingManager.stopRecording()
 
         if configuration.includeCamera {
             cameraManager.stopPreview()
         }
+        audioManager.teardown()
 
         let duration = CMTime(seconds: durationSeconds, preferredTimescale: 600)
         let result = RecordingResult(
             screenURL: screenURL,
             cameraURL: cameraURL,
+            audioURL: audioURL,
             canvasSize: recordingManager.canvasSize,
             startTime: recordingManager.startTime,
             duration: duration,
