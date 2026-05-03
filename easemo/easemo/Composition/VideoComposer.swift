@@ -20,10 +20,16 @@ import Foundation
 ///
 /// Speed adjustment is implemented with `scaleTimeRange(_:toDuration:)` on
 /// every track inside the composition so that audio (when present) stays in
-/// sync with the video.
+/// sync with the video. To keep voices natural at non-1× speeds, the audio
+/// track is rendered through an `AVAudioMix` whose
+/// `audioTimePitchAlgorithm` is set to `.spectral` (formant-preserving
+/// time-stretch) — playback is faster/slower without the chipmunk effect.
 public struct ComposedAssetBundle {
     public let composition: AVMutableComposition
     public let videoComposition: AVMutableVideoComposition
+    /// Audio mix that pins time-stretching to `.spectral` (pitch preserved).
+    /// `nil` when there is no audio track in the composition.
+    public let audioMix: AVAudioMix?
     public let renderSize: CGSize
     public let scaledDuration: CMTime
 }
@@ -56,11 +62,13 @@ public final class VideoComposer {
     ///   - speed: Playback speed multiplier (e.g. 1.0 = normal, 2.0 = double).
     ///   - trimStart: Start offset in seconds (applied before speed scaling).
     ///   - trimEnd: End offset in seconds (applied before speed scaling).
+    ///   - muteAudio: When true, the audio track is silenced in the output.
     public func compose(result: RecordingResult,
                         layout: OverlayLayout,
                         speed: Double,
                         trimStart: Double,
-                        trimEnd: Double) async throws -> ComposedAssetBundle {
+                        trimEnd: Double,
+                        muteAudio: Bool = false) async throws -> ComposedAssetBundle {
 
         let clampedSpeed = max(0.25, min(speed, 4.0))
 
@@ -130,13 +138,24 @@ public final class VideoComposer {
                 if cameraRendered.height > 0 {
                     cameraAspect = cameraRendered.width / cameraRendered.height
                 }
+            }
+        }
 
-                // Audio (if any) — camera mic is the most common source.
-                if let cameraAudioTrack = try await cameraAsset.loadTracks(withMediaType: .audio).first,
-                   usable > .zero,
-                   let composedAudio = composition.addMutableTrack(withMediaType: .audio,
-                                                                   preferredTrackID: kCMPersistentTrackID_Invalid) {
-                    try? composedAudio.insertTimeRange(cameraRange, of: cameraAudioTrack, at: .zero)
+        // ----- Optional microphone audio track -----
+        var composedAudio: AVMutableCompositionTrack?
+        if let audioURL = result.audioURL {
+            let audioAsset = AVURLAsset(url: audioURL)
+            if try await loadable(audioAsset),
+               let audioSourceTrack = try await audioAsset.loadTracks(withMediaType: .audio).first {
+                let audioDuration = try await audioAsset.load(.duration)
+                let remainingAfterStart = CMTimeMaximum(.zero, audioDuration - startTime)
+                let usable = CMTimeMinimum(remainingAfterStart, selectedDuration)
+                if usable > .zero,
+                   let track = composition.addMutableTrack(withMediaType: .audio,
+                                                           preferredTrackID: kCMPersistentTrackID_Invalid) {
+                    let audioRange = CMTimeRange(start: startTime, duration: usable)
+                    try? track.insertTimeRange(audioRange, of: audioSourceTrack, at: .zero)
+                    composedAudio = track
                 }
             }
         }
@@ -174,8 +193,28 @@ public final class VideoComposer {
         )
         videoComposition.instructions = instructions
 
+        // ----- Audio mix (pitch-preserving time stretch) -----
+        // When the user picks a non-1× playback speed, `scaleTimeRange` is
+        // applied to the audio track above. By default, AVFoundation also
+        // scales the pitch (chipmunk effect at 2×, deep voice at 0.5×). We
+        // explicitly opt in to `.spectral` time-stretching, which keeps
+        // formants intact so the speaker's voice sounds natural at any
+        // supported speed.
+        let audioMix: AVAudioMix? = {
+            guard let composedAudio = composedAudio else { return nil }
+            let mix = AVMutableAudioMix()
+            let parameters = AVMutableAudioMixInputParameters(track: composedAudio)
+            parameters.audioTimePitchAlgorithm = .spectral
+            if muteAudio {
+                parameters.setVolume(0, at: .zero)
+            }
+            mix.inputParameters = [parameters]
+            return mix
+        }()
+
         return ComposedAssetBundle(composition: composition,
                                    videoComposition: videoComposition,
+                                   audioMix: audioMix,
                                    renderSize: renderSize,
                                    scaledDuration: scaledDuration)
     }

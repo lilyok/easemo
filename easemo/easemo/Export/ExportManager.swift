@@ -51,6 +51,13 @@ public final class ExportManager: ObservableObject {
         session.outputFileType = .mp4
         session.shouldOptimizeForNetworkUse = true
         session.videoComposition = bundle.videoComposition
+        // Attach the audio mix (if any). The mix pins the time-stretch
+        // algorithm to `.spectral` so audio at non-1× playback speeds
+        // preserves pitch and the speaker's voice sounds natural.
+        if let audioMix = bundle.audioMix {
+            session.audioMix = audioMix
+        }
+        session.audioTimePitchAlgorithm = .spectral
 
         self.session = session
         self.progress = 0
