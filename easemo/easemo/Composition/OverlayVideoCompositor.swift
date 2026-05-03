@@ -15,7 +15,7 @@ import Foundation
 ///    transform it to the configured overlay frame.
 /// 3. Optionally mask the transformed camera layer to a circle.
 /// 4. Composite camera over screen, render to the destination pixel buffer.
-final class OverlayVideoCompositor: NSObject, AVVideoCompositing {
+final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sendable {
 
     /// Hints AVFoundation about the pixel formats we accept and produce.
     let sourcePixelBufferAttributes: [String: Any]? = [

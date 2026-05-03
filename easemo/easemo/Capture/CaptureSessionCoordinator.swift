@@ -55,7 +55,7 @@ public final class CaptureSessionCoordinator: ObservableObject {
     @MainActor
     public init(recordingManager: RecordingManager,
                 cameraManager: CameraManager,
-                audioManager: AudioRecordingManager = AudioRecordingManager()) {
+                audioManager: AudioRecordingManager) {
         self.recordingManager = recordingManager
         self.cameraManager = cameraManager
         self.audioManager = audioManager
@@ -212,7 +212,7 @@ public final class CaptureSessionCoordinator: ObservableObject {
     private func consolidateOverlayMotionKeyframes(recordingDuration: Double,
                                                    finalOverlay: OverlayLayout) -> [OverlayLayoutKeyframe] {
         let dur = max(recordingDuration, 0.05)
-        var keyed = overlayMotionKeyframes
+        let keyed = overlayMotionKeyframes
             .sorted { $0.timeSeconds < $1.timeSeconds }
             .map { OverlayLayoutKeyframe(timeSeconds: min(max(0, $0.timeSeconds), dur), layout: $0.layout) }
 

@@ -64,7 +64,23 @@ public final class ExportManager: ObservableObject {
         self.state = .exporting
         startPollingProgress()
 
-        await session.export()
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            session.exportAsynchronously {
+                switch session.status {
+                case .completed:
+                    continuation.resume()
+                case .cancelled:
+                    continuation.resume(throwing: CancellationError())
+                case .failed:
+                    let err = session.error ?? NSError(domain: "easemo.export", code: -2,
+                                                      userInfo: [NSLocalizedDescriptionKey: "Export failed."])
+                    continuation.resume(throwing: err)
+                default:
+                    continuation.resume(throwing: NSError(domain: "easemo.export", code: -3,
+                                                          userInfo: [NSLocalizedDescriptionKey: "Unexpected export status."]))
+                }
+            }
+        }
         stopPollingProgress()
 
         switch session.status {

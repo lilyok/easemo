@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 
 /// Shape used when masking the camera overlay during composition.
-public enum OverlayShape: String, CaseIterable, Identifiable, Codable {
+public enum OverlayShape: String, CaseIterable, Identifiable, Codable, Sendable {
     case rectangle
     case circle
 
@@ -17,7 +17,7 @@ public enum OverlayShape: String, CaseIterable, Identifiable, Codable {
 }
 
 /// Position of the overlay relative to the screen recording.
-public enum OverlayPosition: String, CaseIterable, Identifiable, Codable {
+public enum OverlayPosition: String, CaseIterable, Identifiable, Codable, Sendable {
     case bottomRight
     case bottomLeft
     case topRight
@@ -39,7 +39,7 @@ public enum OverlayPosition: String, CaseIterable, Identifiable, Codable {
 /// recording. Values are intentionally simple (percent of screen width and
 /// edge inset in pixels) so the layout can be persisted and reasoned about
 /// without needing to know the absolute output resolution upfront.
-public struct OverlayLayout: Equatable, Codable {
+public struct OverlayLayout: Equatable, Codable, Sendable {
     /// Camera overlay width as a fraction of the screen width (0.05–0.5).
     public var widthFraction: CGFloat
     /// Inset from the chosen corner, in output pixels.

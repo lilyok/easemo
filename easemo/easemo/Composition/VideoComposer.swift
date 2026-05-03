@@ -283,7 +283,7 @@ public final class VideoComposer {
             let sourceT = key.timeSeconds
             if sourceT <= trimStart { continue }
             if sourceT >= trimEnd - 1e-9 { break }
-            var compSec = (sourceT - trimStart) / playbackSpeed
+            let compSec = (sourceT - trimStart) / playbackSpeed
             if !compSec.isFinite || compSec <= 0 { continue }
             let t = CMTime(seconds: compSec, preferredTimescale: preferredTimescale)
             if CMTimeCompare(t, scaledDuration) >= 0 { break }
