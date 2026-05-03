@@ -54,6 +54,9 @@ struct EditingView: View {
         .onChange(of: appState.overlay, perform: { _ in
             scheduleComposedPreviewRebuild(immediatePlayback: true)
         })
+        .onChange(of: appState.muteAudio, perform: { _ in
+            scheduleComposedPreviewRebuild(immediatePlayback: true)
+        })
     }
 
     private var header: some View {
@@ -120,6 +123,26 @@ struct EditingView: View {
                 Text("2.0x")
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.65))
+            }
+
+            HStack(spacing: 12) {
+                Text("Audio")
+                    .foregroundStyle(.white)
+                if recording.audioURL != nil {
+                    Toggle("Mute", isOn: $appState.muteAudio)
+                        .toggleStyle(.switch)
+                        .tint(.accentColor)
+                        .foregroundStyle(.white.opacity(0.85))
+                    Spacer()
+                    Text("Pitch preserved at \(String(format: "%.2fx", appState.playbackSpeed)) speed")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.65))
+                } else {
+                    Spacer()
+                    Text("No microphone audio in this recording.")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.55))
+                }
             }
 
             VStack(alignment: .leading, spacing: 10) {
@@ -243,9 +266,17 @@ struct EditingView: View {
                                                                layout: layout,
                                                                speed: appState.playbackSpeed,
                                                                trimStart: appState.trimStartSeconds,
-                                                               trimEnd: appState.trimEndSeconds)
+                                                               trimEnd: appState.trimEndSeconds,
+                                                               muteAudio: appState.muteAudio)
             let item = AVPlayerItem(asset: bundle.composition)
             item.videoComposition = bundle.videoComposition
+            // Match export: use spectral (pitch-preserving) time stretch when
+            // playing back at non-1× speeds so the preview sounds the same as
+            // the exported file.
+            item.audioTimePitchAlgorithm = .spectral
+            if let audioMix = bundle.audioMix {
+                item.audioMix = audioMix
+            }
             let outDur = max(bundle.scaledDuration.seconds, 0.05)
             composedOutputDurationSeconds = outDur
 

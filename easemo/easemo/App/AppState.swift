@@ -43,6 +43,8 @@ public final class AppState: ObservableObject {
     @Published public var trimStartSeconds: Double = 0
     /// Trim end (seconds) selected on the editing screen.
     @Published public var trimEndSeconds: Double = 0
+    /// When true, the audio track is muted in the export and preview.
+    @Published public var muteAudio: Bool = false
 
     /// Status string shown in the UI (recording timer / export progress).
     @Published public var statusMessage: String = ""
@@ -156,7 +158,8 @@ public final class AppState: ObservableObject {
                                                     layout: overlay,
                                                     speed: playbackSpeed,
                                                     trimStart: trimStartSeconds,
-                                                    trimEnd: trimEndSeconds)
+                                                    trimEnd: trimEndSeconds,
+                                                    muteAudio: muteAudio)
             statusMessage = "Exporting…"
             _ = try await exportManager.export(bundle: bundle, to: destination)
             statusMessage = "Saved to \(destination.lastPathComponent)"
@@ -171,6 +174,7 @@ public final class AppState: ObservableObject {
         statusMessage = ""
         trimStartSeconds = 0
         trimEndSeconds = 0
+        muteAudio = false
     }
 
     // MARK: Helpers

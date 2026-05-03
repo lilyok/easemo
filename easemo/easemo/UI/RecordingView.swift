@@ -91,9 +91,15 @@ struct RecordingView: View {
 
     private var controlsPanel: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Toggle("Include webcam", isOn: $appState.configuration.includeCamera)
-                .toggleStyle(.switch)
-                .tint(.accentColor)
+            HStack(spacing: 24) {
+                Toggle("Include webcam", isOn: $appState.configuration.includeCamera)
+                    .toggleStyle(.switch)
+                    .tint(.accentColor)
+
+                Toggle("Record microphone", isOn: $appState.configuration.includeMicrophone)
+                    .toggleStyle(.switch)
+                    .tint(.accentColor)
+            }
 
             if appState.configuration.includeCamera {
                 HStack(spacing: 16) {
