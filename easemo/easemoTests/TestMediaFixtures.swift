@@ -14,6 +14,7 @@ enum TestMediaFixtureError: LocalizedError {
     case noFramesProduced
     case writerStartFailed(message: String)
     case writerFinishFailed(message: String)
+    case memoryAllocationFailed
 
     var errorDescription: String? {
         switch self {
@@ -31,6 +32,8 @@ enum TestMediaFixtureError: LocalizedError {
             return "AVAssetWriter.startWriting failed: \(message)."
         case .writerFinishFailed(let message):
             return "AVAssetWriter.finishWriting did not complete: \(message)."
+        case .memoryAllocationFailed:
+            return "malloc failed while building audio fixture samples."
         }
     }
 }
@@ -42,9 +45,21 @@ enum TestMediaFixtures {
 
     /// Tear down a partially written fixture so `throws` paths do not leak
     /// temp files (e.g. when `setUp` fails before `tearDown` assigns URLs).
+    ///
+    /// Set `EASEMO_KEEP_FAILED_TEST_MEDIA=1` to skip `removeItem` when the
+    /// writer is not `.writing` (e.g. failed before `startWriting`, or after
+    /// `finishWriting` left a file). Note: if `cancelWriting()` runs, Apple's
+    /// API deletes the output file for an in-flight session, so there is
+    /// nothing left on disk to inspect for failures during active writing.
     private static func discardFailedFixtureOutput(at url: URL, writer: AVAssetWriter?) {
+        let retainArtifacts = ProcessInfo.processInfo.environment["EASEMO_KEEP_FAILED_TEST_MEDIA"] == "1"
         if let writer, writer.status == .writing {
+            // `cancelWriting()` blocks until cancellation completes; if a file
+            // was created during the session, Apple deletes it (see docs).
             writer.cancelWriting()
+        }
+        if retainArtifacts {
+            return
         }
         try? FileManager.default.removeItem(at: url)
     }
@@ -202,10 +217,10 @@ enum TestMediaFixtures {
             // would be unsafe because its storage can be released as soon
             // as the closure returns, while CMBlockBuffer keeps a raw
             // pointer to those bytes.
-            let memory = malloc(dataSize)
-            if let memory = memory {
-                memset(memory, 0, dataSize)
+            guard let memory = malloc(dataSize) else {
+                throw TestMediaFixtureError.memoryAllocationFailed
             }
+            memset(memory, 0, dataSize)
             var blockBuffer: CMBlockBuffer?
             let blockStatus = CMBlockBufferCreateWithMemoryBlock(
                 allocator: kCFAllocatorDefault,
@@ -219,7 +234,7 @@ enum TestMediaFixtures {
                 blockBufferOut: &blockBuffer
             )
             guard blockStatus == noErr, let bb = blockBuffer else {
-                if let memory = memory { free(memory) }
+                free(memory)
                 throw TestMediaFixtureError.blockBufferCreationFailed(blockStatus)
             }
             var sampleBuffer: CMSampleBuffer?

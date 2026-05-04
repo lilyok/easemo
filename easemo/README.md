@@ -223,6 +223,8 @@ The test target (`easemoTests`) covers the pure-Swift modules:
 - `AppStateTests` — elapsed-time formatter, AppState bindings, default mic / mute state.
 - `VideoComposerAudioTests` — composer-side wiring of the `.spectral` pitch algorithm and mute behavior, exercised against synthesized fixture media (`TestMediaFixtures`).
 
+When a fixture build fails, temp files are normally deleted automatically. Set **`EASEMO_KEEP_FAILED_TEST_MEDIA=1`** to skip deleting the temp URL when cleanup would only remove an on-disk file (for example a failure before `startWriting`). If `AVAssetWriter` is still `.writing`, **`cancelWriting()`** runs and **Apple’s API removes the output file** for that session, so there is often nothing left to inspect for mid-write failures.
+
 ### LSP / `buildServer.json`
 
 The repository ships without a `buildServer.json`. If you use a Swift LSP
