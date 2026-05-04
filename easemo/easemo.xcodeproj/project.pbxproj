@@ -30,6 +30,7 @@
 		A100000000000000000000B1 /* OverlayLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000B1 /* OverlayLayoutTests.swift */; };
 		A100000000000000000000B2 /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000B2 /* AppStateTests.swift */; };
 		A100000000000000000000D3 /* VideoComposerAudioTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000D3 /* VideoComposerAudioTests.swift */; };
+		A100000000000000000000D5 /* ExportErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000D5 /* ExportErrorTests.swift */; };
 		A100000000000000000000D4 /* TestMediaFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000D4 /* TestMediaFixtures.swift */; };
 /* End PBXBuildFile section */
 
@@ -67,6 +68,7 @@
 		B100000000000000000000B1 /* OverlayLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayLayoutTests.swift; sourceTree = "<group>"; };
 		B100000000000000000000B2 /* AppStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTests.swift; sourceTree = "<group>"; };
 		B100000000000000000000D3 /* VideoComposerAudioTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoComposerAudioTests.swift; sourceTree = "<group>"; };
+		B100000000000000000000D5 /* ExportErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportErrorTests.swift; sourceTree = "<group>"; };
 		B100000000000000000000D4 /* TestMediaFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestMediaFixtures.swift; sourceTree = "<group>"; };
 		B100000000000000000000B3 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B100000000000000000000B4 /* easemo.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = easemo.entitlements; sourceTree = "<group>"; };
@@ -172,6 +174,7 @@
 				B100000000000000000000B1 /* OverlayLayoutTests.swift */,
 				B100000000000000000000B2 /* AppStateTests.swift */,
 				B100000000000000000000D3 /* VideoComposerAudioTests.swift */,
+				B100000000000000000000D5 /* ExportErrorTests.swift */,
 				B100000000000000000000D4 /* TestMediaFixtures.swift */,
 			);
 			path = easemoTests;
@@ -342,6 +345,7 @@
 				A100000000000000000000B1 /* OverlayLayoutTests.swift in Sources */,
 				A100000000000000000000B2 /* AppStateTests.swift in Sources */,
 				A100000000000000000000D3 /* VideoComposerAudioTests.swift in Sources */,
+				A100000000000000000000D5 /* ExportErrorTests.swift in Sources */,
 				A100000000000000000000D4 /* TestMediaFixtures.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

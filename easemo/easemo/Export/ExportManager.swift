@@ -2,6 +2,38 @@ import AVFoundation
 import Combine
 import Foundation
 
+/// Errors thrown by `ExportManager`. Modelled as a single `LocalizedError`
+/// enum so call sites and tests can pattern-match on the failure mode
+/// (`if case .alreadyRunning ...`) instead of reading magic NSError codes.
+public enum ExportError: LocalizedError, Equatable {
+    /// Returned when `export(...)` is called while a previous export is
+    /// still in progress.
+    case alreadyRunning
+    /// `AVAssetExportSession(asset:presetName:)` returned `nil` — usually
+    /// because the requested preset cannot be applied to the supplied
+    /// composition (e.g. unsupported resolution).
+    case sessionUnavailable(presetName: String)
+    /// Wraps an `AVAssetExportSession.error` propagated from AVFoundation.
+    case sessionFailed(message: String)
+    /// `AVAssetExportSession.status` ended in something other than
+    /// `.completed`, `.cancelled`, or `.failed`. The associated value is the
+    /// raw status (`session.status.rawValue`) for diagnostics.
+    case unexpectedStatus(rawValue: Int)
+
+    public var errorDescription: String? {
+        switch self {
+        case .alreadyRunning:
+            return "An export is already in progress."
+        case .sessionUnavailable(let preset):
+            return "Could not create an AVAssetExportSession with preset \(preset)."
+        case .sessionFailed(let message):
+            return message
+        case .unexpectedStatus(let rawValue):
+            return "Export ended in an unexpected status (\(rawValue))."
+        }
+    }
+}
+
 /// `ExportManager` is responsible for rendering a `ComposedAssetBundle` to
 /// disk as an MP4 (H.264) file using `AVAssetExportSession`.
 ///
@@ -44,8 +76,7 @@ public final class ExportManager: ObservableObject {
         // disables the export button while exporting, but this guard makes
         // the contract explicit at the API boundary.
         if case .exporting = state {
-            throw NSError(domain: "easemo.export", code: -10,
-                          userInfo: [NSLocalizedDescriptionKey: "An export is already in progress."])
+            throw ExportError.alreadyRunning
         }
 
         if FileManager.default.fileExists(atPath: outputURL.path) {
@@ -54,9 +85,9 @@ public final class ExportManager: ObservableObject {
 
         guard let session = AVAssetExportSession(asset: bundle.composition,
                                                  presetName: presetName) else {
-            state = .failed("Could not create AVAssetExportSession.")
-            throw NSError(domain: "easemo.export", code: -1,
-                          userInfo: [NSLocalizedDescriptionKey: "Could not create AVAssetExportSession."])
+            let error = ExportError.sessionUnavailable(presetName: presetName)
+            state = .failed(error.localizedDescription)
+            throw error
         }
 
         session.outputURL = outputURL
@@ -93,12 +124,10 @@ public final class ExportManager: ObservableObject {
                 case .cancelled:
                     continuation.resume(throwing: CancellationError())
                 case .failed:
-                    let err = session.error ?? NSError(domain: "easemo.export", code: -2,
-                                                       userInfo: [NSLocalizedDescriptionKey: "Export failed."])
-                    continuation.resume(throwing: err)
+                    let message = session.error?.localizedDescription ?? "Export failed."
+                    continuation.resume(throwing: ExportError.sessionFailed(message: message))
                 default:
-                    continuation.resume(throwing: NSError(domain: "easemo.export", code: -3,
-                                                          userInfo: [NSLocalizedDescriptionKey: "Unexpected export status."]))
+                    continuation.resume(throwing: ExportError.unexpectedStatus(rawValue: session.status.rawValue))
                 }
             }
         }
@@ -114,12 +143,11 @@ public final class ExportManager: ObservableObject {
         case .failed:
             let message = session.error?.localizedDescription ?? "Export failed."
             state = .failed(message)
-            throw session.error ?? NSError(domain: "easemo.export", code: -2,
-                                           userInfo: [NSLocalizedDescriptionKey: message])
+            throw ExportError.sessionFailed(message: message)
         default:
-            state = .failed("Unexpected export status: \(session.status.rawValue)")
-            throw NSError(domain: "easemo.export", code: -3,
-                          userInfo: [NSLocalizedDescriptionKey: "Unexpected export status."])
+            let error = ExportError.unexpectedStatus(rawValue: session.status.rawValue)
+            state = .failed(error.localizedDescription)
+            throw error
         }
     }
 
