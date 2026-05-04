@@ -1,6 +1,6 @@
 import AVFoundation
+import CoreGraphics
 import CoreImage
-import CoreVideo
 import Foundation
 
 /// Errors thrown by `OverlayVideoCompositor.render(request:)`. Modelled as a
@@ -99,40 +99,51 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
         }
 
         let renderSize = request.renderContext.size
+        let renderRect = CGRect(origin: .zero, size: renderSize)
 
-        // Background = screen track.
-        var output: CIImage = CIImage(color: CIColor.black).cropped(to: CGRect(origin: .zero, size: renderSize))
+        var output: CIImage = CIImage(color: CIColor.black).cropped(to: renderRect)
         if let screenBuffer = request.sourceFrame(byTrackID: instruction.screenTrackID) {
             let screenImage = CIImage(cvPixelBuffer: screenBuffer)
-            // Fit screen frame to render size preserving aspect.
             let screenScaled = scaledToFit(screenImage, in: renderSize)
             output = screenScaled.composited(over: output)
         }
 
+        let pipFrame: CGRect
+        let pipShape: OverlayShape
+        let overlayCameraID: CMPersistentTrackID?
+
+        if let timeline = instruction.motionTimeline {
+            let rawSeconds = CMTimeGetSeconds(request.compositionTime)
+            let compositionSeconds = rawSeconds.isFinite ? max(0, rawSeconds) : 0
+            let sourceSeconds = timeline.trimStartSeconds + compositionSeconds * timeline.playbackSpeed
+            let layout = OverlayTimelineSample.layout(atSourceSeconds: sourceSeconds,
+                                                      keyframes: timeline.keyframes,
+                                                      fallback: timeline.fallbackLayout)
+            pipFrame = layout.frame(in: renderSize, cameraAspect: timeline.cameraAspect)
+            pipShape = layout.shape
+            overlayCameraID = layout.isVisible ? instruction.persistentCameraCompositionID : nil
+        } else {
+            pipFrame = instruction.cameraFrame
+            pipShape = instruction.shape
+            overlayCameraID = instruction.staticOverlayCameraCompositionID
+        }
+
         // Foreground = camera track (optional).
-        if let cameraTrackID = instruction.cameraTrackID,
+        if let cameraTrackID = overlayCameraID,
            let cameraBuffer = request.sourceFrame(byTrackID: cameraTrackID) {
             var camera = CIImage(cvPixelBuffer: cameraBuffer)
-            // Camera images can be flipped/rotated depending on the source
-            // device. Trust the natural transform AVFoundation provides via
-            // its frame extents — we already accounted for orientation when
-            // building the composition, so we just scale to the overlay frame.
-
-            let frame = instruction.cameraFrame
             let cameraExtent = camera.extent
-            let scaleX = frame.width / max(cameraExtent.width, 1)
-            let scaleY = frame.height / max(cameraExtent.height, 1)
+            let scaleX = pipFrame.width / max(cameraExtent.width, 1)
+            let scaleY = pipFrame.height / max(cameraExtent.height, 1)
 
-            // Flip Y because Core Image origin is bottom-left while we want
-            // `cameraFrame` measured from the top-left of the canvas.
-            let flippedY = renderSize.height - frame.maxY
+            let flippedY = renderSize.height - pipFrame.maxY
             camera = camera.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
-            camera = camera.transformed(by: CGAffineTransform(translationX: frame.origin.x, y: flippedY))
+            camera = camera.transformed(by: CGAffineTransform(translationX: pipFrame.origin.x, y: flippedY))
 
-            if instruction.shape == .circle {
-                let radius = min(frame.width, frame.height) / 2.0
-                let centerX = frame.origin.x + frame.width / 2.0
-                let centerY = flippedY + frame.height / 2.0
+            if pipShape == .circle {
+                let radius = min(pipFrame.width, pipFrame.height) / 2.0
+                let centerX = pipFrame.origin.x + pipFrame.width / 2.0
+                let centerY = flippedY + pipFrame.height / 2.0
                 let mask = CIFilter(name: "CIRadialGradient", parameters: [
                     "inputCenter": CIVector(x: centerX, y: centerY),
                     "inputRadius0": radius - 1,
@@ -170,13 +181,20 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
     }
 }
 
-/// Custom video composition instruction that carries the parameters our
-/// compositor needs (track IDs, overlay frame, shape).
+/// Custom video composition instruction that carries the parameters our compositor needs.
+///
+/// Either **`motionTimeline`** is set (single instruction over full export — PiP resolved per frame),
+/// or **`cameraFrame`** / **`shape`** / **`staticOverlayCameraCompositionID`** describe a fixed overlay slice.
 final class OverlayInstruction: NSObject, AVVideoCompositionInstructionProtocol {
 
     let screenTrackID: CMPersistentTrackID
-    /// When `nil`, the PiP overlay is skipped for this slice; camera frames may still be listed in `requiredSourceTrackIDs`.
-    let cameraTrackID: CMPersistentTrackID?
+    /// Present whenever the composition includes a camera track (`requiredSourceTrackIDs`).
+    let persistentCameraCompositionID: CMPersistentTrackID?
+    /// PiP sampling track when **`motionTimeline == nil`** (`nil` = hide overlay for static slices).
+    let staticOverlayCameraCompositionID: CMPersistentTrackID?
+    /// When non-nil, PiP rect/shape/visibility come from keyframes using **`compositionTime`**.
+    let motionTimeline: OverlayMotionTimeline?
+    /// Static PiP geometry when **`motionTimeline == nil`**.
     let cameraFrame: CGRect
     let shape: OverlayShape
 
@@ -186,24 +204,23 @@ final class OverlayInstruction: NSObject, AVVideoCompositionInstructionProtocol 
     let requiredSourceTrackIDs: [NSValue]?
     let passthroughTrackID: CMPersistentTrackID = kCMPersistentTrackID_Invalid
 
-    /// - Parameters:
-    ///   - compositionCameraTrackID: When set, IDs are appended to **every** slice’s `requiredSourceTrackIDs`.
-    ///     Keeping decoder inputs stable across slices avoids intermittent black video with custom compositors.
-    ///   - overlayCameraCompositionTrackID: Track used for overlay sampling (`nil` = hide overlay this slice).
     init(timeRange: CMTimeRange,
          screenTrackID: CMPersistentTrackID,
-         compositionCameraTrackID: CMPersistentTrackID?,
-         overlayCameraCompositionTrackID: CMPersistentTrackID?,
+         persistentCameraCompositionID: CMPersistentTrackID?,
+         staticOverlayCameraCompositionID: CMPersistentTrackID?,
+         motionTimeline: OverlayMotionTimeline?,
          cameraFrame: CGRect,
          shape: OverlayShape) {
         self.timeRange = timeRange
         self.screenTrackID = screenTrackID
-        self.cameraTrackID = overlayCameraCompositionTrackID
+        self.persistentCameraCompositionID = persistentCameraCompositionID
+        self.staticOverlayCameraCompositionID = staticOverlayCameraCompositionID
+        self.motionTimeline = motionTimeline
         self.cameraFrame = cameraFrame
         self.shape = shape
         var ids: [NSValue] = [NSNumber(value: screenTrackID)]
-        if let compositionCameraTrackID {
-            ids.append(NSNumber(value: compositionCameraTrackID))
+        if let persistentCameraCompositionID {
+            ids.append(NSNumber(value: persistentCameraCompositionID))
         }
         self.requiredSourceTrackIDs = ids
     }

@@ -187,7 +187,6 @@ public final class VideoComposer {
             renderSize: renderSize,
             cameraAspect: cameraAspect,
             trimStart: clampedStart,
-            trimEnd: clampedEnd,
             playbackSpeed: clampedSpeed,
             scaledDuration: scaledDuration
         )
@@ -219,21 +218,6 @@ public final class VideoComposer {
                                    scaledDuration: scaledDuration)
     }
 
-    private func overlayLayout(atSourceTime seconds: Double,
-                               motionKeyframes: [OverlayLayoutKeyframe],
-                               fallback: OverlayLayout) -> OverlayLayout {
-        guard let first = motionKeyframes.first else { return fallback }
-        var picked = first.layout
-        for key in motionKeyframes {
-            if key.timeSeconds <= seconds + 1e-9 {
-                picked = key.layout
-            } else {
-                break
-            }
-        }
-        return picked
-    }
-
     private func buildOverlayInstructions(motionKeyframes: [OverlayLayoutKeyframe],
                                           fallbackLayout: OverlayLayout,
                                           composedScreen: AVMutableCompositionTrack,
@@ -241,27 +225,28 @@ public final class VideoComposer {
                                           renderSize: CGSize,
                                           cameraAspect: CGFloat,
                                           trimStart: Double,
-                                          trimEnd: Double,
                                           playbackSpeed: Double,
                                           scaledDuration: CMTime) -> [OverlayInstruction] {
         let cameraPersistentID = composedCamera?.trackID
-        let preferredTimescale: CMTimeScale = scaledDuration.timescale != 0 ? scaledDuration.timescale : 600
 
         func makeSlice(timeRange: CMTimeRange, layout: OverlayLayout) -> OverlayInstruction {
             OverlayInstruction(
                 timeRange: timeRange,
                 screenTrackID: composedScreen.trackID,
-                compositionCameraTrackID: cameraPersistentID,
-                overlayCameraCompositionTrackID: layout.isVisible ? cameraPersistentID : nil,
+                persistentCameraCompositionID: cameraPersistentID,
+                staticOverlayCameraCompositionID: layout.isVisible ? cameraPersistentID : nil,
+                motionTimeline: nil,
                 cameraFrame: layout.frame(in: renderSize, cameraAspect: cameraAspect),
                 shape: layout.shape
             )
         }
 
         guard CMTimeCompare(scaledDuration, .zero) > 0 else {
-            let lay = overlayLayout(atSourceTime: trimStart,
-                                   motionKeyframes: motionKeyframes.isEmpty ? [] : motionKeyframes,
-                                   fallback: fallbackLayout)
+            let lay = OverlayTimelineSample.layout(
+                atSourceSeconds: trimStart,
+                keyframes: motionKeyframes.isEmpty ? [] : motionKeyframes,
+                fallback: fallbackLayout
+            )
             return [makeSlice(timeRange: CMTimeRange(start: .zero, duration: scaledDuration), layout: lay)]
         }
 
@@ -269,57 +254,25 @@ public final class VideoComposer {
             return [makeSlice(timeRange: CMTimeRange(start: .zero, duration: scaledDuration), layout: fallbackLayout)]
         }
 
-        struct Change {
-            var time: CMTime
-            var layout: OverlayLayout
-        }
+        let timeline = OverlayMotionTimeline(
+            trimStartSeconds: trimStart,
+            playbackSpeed: playbackSpeed,
+            keyframes: motionKeyframes,
+            fallbackLayout: fallbackLayout,
+            cameraAspect: cameraAspect
+        )
 
-        let startLayout = overlayLayout(atSourceTime: trimStart,
-                                        motionKeyframes: motionKeyframes,
-                                        fallback: fallbackLayout)
-        var changes: [Change] = [Change(time: .zero, layout: startLayout)]
-
-        for key in motionKeyframes {
-            let sourceT = key.timeSeconds
-            if sourceT <= trimStart { continue }
-            if sourceT >= trimEnd - 1e-9 { break }
-            let compSec = (sourceT - trimStart) / playbackSpeed
-            if !compSec.isFinite || compSec <= 0 { continue }
-            let t = CMTime(seconds: compSec, preferredTimescale: preferredTimescale)
-            if CMTimeCompare(t, scaledDuration) >= 0 { break }
-            changes.append(Change(time: t, layout: key.layout))
-        }
-
-        changes.sort { CMTimeCompare($0.time, $1.time) < 0 }
-
-        var merged: [Change] = []
-        for c in changes {
-            if let last = merged.last, CMTimeCompare(last.time, c.time) == 0 {
-                merged[merged.count - 1] = c
-                continue
-            }
-            if let last = merged.last, last.layout == c.layout { continue }
-            merged.append(c)
-        }
-
-        guard !merged.isEmpty else {
-            return [makeSlice(timeRange: CMTimeRange(start: .zero, duration: scaledDuration), layout: fallbackLayout)]
-        }
-
-        var instructions: [OverlayInstruction] = []
-        for index in merged.indices {
-            let start = merged[index].time
-            let layout = merged[index].layout
-            let end = index + 1 < merged.count ? merged[index + 1].time : scaledDuration
-            let sliceDur = CMTimeSubtract(end, start)
-            if CMTimeCompare(sliceDur, .zero) <= 0 { continue }
-            instructions.append(makeSlice(timeRange: CMTimeRange(start: start, duration: sliceDur), layout: layout))
-        }
-
-        if instructions.isEmpty {
-            return [makeSlice(timeRange: CMTimeRange(start: .zero, duration: scaledDuration), layout: fallbackLayout)]
-        }
-        return instructions
+        return [
+            OverlayInstruction(
+                timeRange: CMTimeRange(start: .zero, duration: scaledDuration),
+                screenTrackID: composedScreen.trackID,
+                persistentCameraCompositionID: cameraPersistentID,
+                staticOverlayCameraCompositionID: nil,
+                motionTimeline: timeline,
+                cameraFrame: .zero,
+                shape: .rectangle
+            )
+        ]
     }
 
     // MARK: - Helpers
