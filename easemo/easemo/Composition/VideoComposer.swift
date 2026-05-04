@@ -154,7 +154,7 @@ public final class VideoComposer {
                    let track = composition.addMutableTrack(withMediaType: .audio,
                                                            preferredTrackID: kCMPersistentTrackID_Invalid) {
                     let audioRange = CMTimeRange(start: startTime, duration: usable)
-                    try? track.insertTimeRange(audioRange, of: audioSourceTrack, at: .zero)
+                    try track.insertTimeRange(audioRange, of: audioSourceTrack, at: .zero)
                     composedAudio = track
                 }
             }

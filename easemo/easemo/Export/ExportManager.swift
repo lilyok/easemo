@@ -110,7 +110,12 @@ public final class ExportManager: ObservableObject {
         // `defer` guarantees we tear down the polling timer even if the
         // continuation throws or the task is cancelled mid-await — so a
         // quick re-export call cannot stack timers behind a leaked one.
-        defer { stopPollingProgress() }
+        // Clear `session` so a follow-up export or a stale poll timer cannot
+        // read the previous `AVAssetExportSession` after this call returns.
+        defer {
+            stopPollingProgress()
+            self.session = nil
+        }
 
         // The legacy `exportAsynchronously(completionHandler:)` API plays
         // better with strict Swift 6 concurrency than the implicit-async
@@ -153,6 +158,7 @@ public final class ExportManager: ObservableObject {
 
     public func cancel() {
         session?.cancelExport()
+        session = nil
         stopPollingProgress()
         state = .cancelled
     }

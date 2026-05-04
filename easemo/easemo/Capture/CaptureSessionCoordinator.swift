@@ -234,8 +234,8 @@ public final class CaptureSessionCoordinator: ObservableObject {
             }
         }
 
-        if out.first!.timeSeconds > 0.001 {
-            out.insert(OverlayLayoutKeyframe(timeSeconds: 0, layout: out.first!.layout), at: 0)
+        if let first = out.first, first.timeSeconds > 0.001 {
+            out.insert(OverlayLayoutKeyframe(timeSeconds: 0, layout: first.layout), at: 0)
         }
 
         /// Snap near-end timestamps to `dur` when needed; append a terminal change only when layout differs.

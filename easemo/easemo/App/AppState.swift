@@ -390,6 +390,9 @@ private struct FloatingRecorderHUD: View {
     let onSetShape: (OverlayShape) -> Void
     let onReset: () -> Void
 
+    /// `MagnificationGesture` reports cumulative scale since the gesture began; convert to per-update deltas for `onScale`.
+    @State private var pinchBase: CGFloat = 1.0
+
     @ViewBuilder
     var body: some View {
         Group {
@@ -404,9 +407,16 @@ private struct FloatingRecorderHUD: View {
             }
         }
         .background(Color.clear)
-        .gesture(MagnificationGesture().onChanged { value in
-            onScale(value)
-        })
+        .gesture(MagnificationGesture()
+            .onChanged { value in
+                let delta = value / pinchBase
+                pinchBase = value
+                guard delta.isFinite, delta > 0 else { return }
+                onScale(delta)
+            }
+            .onEnded { _ in
+                pinchBase = 1.0
+            })
         .contextMenu {
             Button("Circle") { onSetShape(.circle) }
             Button("Rectangle") { onSetShape(.rectangle) }
