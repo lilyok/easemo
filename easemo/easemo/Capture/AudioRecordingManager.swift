@@ -175,6 +175,11 @@ public final class AudioRecordingManager: NSObject, ObservableObject {
 }
 
 extension AudioRecordingManager: AVCaptureAudioDataOutputSampleBufferDelegate {
+    /// `AVCaptureAudioDataOutput` posts samples on `sampleQueue` (a serial
+    /// dispatch queue). We read the lock-protected handler reference and
+    /// forward without hopping to the main actor; per-recording mutable
+    /// state lives entirely inside the handler and is touched only on the
+    /// sample queue.
     public nonisolated func captureOutput(_ output: AVCaptureOutput,
                                           didOutput sampleBuffer: CMSampleBuffer,
                                           from connection: AVCaptureConnection) {

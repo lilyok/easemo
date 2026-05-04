@@ -219,6 +219,12 @@ public final class CameraManager: NSObject, ObservableObject {
 }
 
 extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
+    /// `AVCaptureVideoDataOutput` calls this delegate method on `sampleQueue`
+    /// — a serial dispatch queue — for every frame. The hot path must not
+    /// block the main actor, so we read the lock-protected handler reference
+    /// directly and forward to it. The handler instance itself is only ever
+    /// mutated on the same `sampleQueue`, which guarantees ordered access to
+    /// its writer and first-frame state.
     public nonisolated func captureOutput(_ output: AVCaptureOutput,
                                           didOutput sampleBuffer: CMSampleBuffer,
                                           from connection: AVCaptureConnection) {
@@ -263,7 +269,18 @@ final class CameraSampleHandler {
 }
 
 /// Lock-protected reference holder. Used so non-isolated callbacks
-/// (e.g. capture queue) can read a value updated from the main actor.
+/// (e.g. an `AVCaptureVideoDataOutputSampleBufferDelegate` running on a
+/// dispatch queue) can read a value updated from the main actor.
+///
+/// **Threading contract.** All access to `_value` is serialised through
+/// `lock`; the lock is acquired in the simple non-recursive critical
+/// sections of `value`'s getter/setter, never re-entered, and never held
+/// while calling out to user code (no callbacks fire under the lock).
+/// Because the only state is a single optional reference and the lock is
+/// cheap (`NSLock`), we declare `@unchecked Sendable`: writers are exclusive,
+/// readers see a consistent snapshot, and there is no shared mutable state
+/// outside the lock. If new fields are added, they MUST also be guarded by
+/// `lock`, or the `@unchecked Sendable` annotation must be revisited.
 final class LockedRef<T: AnyObject>: @unchecked Sendable {
     private let lock = NSLock()
     private var _value: T?
