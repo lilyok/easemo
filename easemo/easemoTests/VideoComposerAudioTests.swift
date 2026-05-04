@@ -8,8 +8,11 @@ import XCTest
 @MainActor
 final class VideoComposerAudioTests: XCTestCase {
 
-    private var screenURL: URL!
-    private var audioURL: URL!
+    /// Held as optional `URL?` rather than `URL!` so a fixture-build failure
+    /// in `setUp` produces a clear `XCTUnwrap` failure rather than an
+    /// unrelated EXC_BAD_INSTRUCTION inside the test body.
+    private var screenURL: URL?
+    private var audioURL: URL?
 
     override func setUp() async throws {
         try await super.setUp()
@@ -21,10 +24,14 @@ final class VideoComposerAudioTests: XCTestCase {
         for url in [screenURL, audioURL].compactMap({ $0 }) {
             try? FileManager.default.removeItem(at: url)
         }
+        screenURL = nil
+        audioURL = nil
         try await super.tearDown()
     }
 
     func testAudioMixUsesSpectralPitchAlgorithm() async throws {
+        let screenURL = try XCTUnwrap(self.screenURL, "Test fixture screen URL was not produced.")
+        let audioURL = try XCTUnwrap(self.audioURL, "Test fixture audio URL was not produced.")
         let result = RecordingResult(
             screenURL: screenURL,
             cameraURL: nil,
@@ -49,6 +56,8 @@ final class VideoComposerAudioTests: XCTestCase {
     }
 
     func testMuteAudioZeroesVolume() async throws {
+        let screenURL = try XCTUnwrap(self.screenURL, "Test fixture screen URL was not produced.")
+        let audioURL = try XCTUnwrap(self.audioURL, "Test fixture audio URL was not produced.")
         let result = RecordingResult(
             screenURL: screenURL,
             cameraURL: nil,
@@ -80,6 +89,7 @@ final class VideoComposerAudioTests: XCTestCase {
     }
 
     func testNoAudioMixWhenAudioURLIsNil() async throws {
+        let screenURL = try XCTUnwrap(self.screenURL, "Test fixture screen URL was not produced.")
         let result = RecordingResult(
             screenURL: screenURL,
             cameraURL: nil,
