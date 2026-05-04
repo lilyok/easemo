@@ -32,9 +32,21 @@ public final class ExportManager: ObservableObject {
     ///   - bundle: The composed asset bundle returned from `VideoComposer`.
     ///   - outputURL: Destination file URL. Any existing file is replaced.
     ///   - presetName: AVAssetExportSession preset (defaults to highest quality).
+    /// - Important: The export manager owns at most one in-flight session.
+    ///   Calling `export(...)` while a previous export is still running
+    ///   throws `ExportError.alreadyRunning`; cancel the existing one first.
     public func export(bundle: ComposedAssetBundle,
                        to outputURL: URL,
                        presetName: String = AVAssetExportPresetHighestQuality) async throws -> URL {
+
+        // Reject re-entrant exports: a concurrent call would orphan the
+        // existing session and stack a second progress timer. The UI also
+        // disables the export button while exporting, but this guard makes
+        // the contract explicit at the API boundary.
+        if case .exporting = state {
+            throw NSError(domain: "easemo.export", code: -10,
+                          userInfo: [NSLocalizedDescriptionKey: "An export is already in progress."])
+        }
 
         if FileManager.default.fileExists(atPath: outputURL.path) {
             try FileManager.default.removeItem(at: outputURL)
@@ -64,6 +76,15 @@ public final class ExportManager: ObservableObject {
         self.state = .exporting
         startPollingProgress()
 
+        // `defer` guarantees we tear down the polling timer even if the
+        // continuation throws or the task is cancelled mid-await — so a
+        // quick re-export call cannot stack timers behind a leaked one.
+        defer { stopPollingProgress() }
+
+        // The legacy `exportAsynchronously(completionHandler:)` API plays
+        // better with strict Swift 6 concurrency than the implicit-async
+        // `await session.export()` overload, which currently flags
+        // non-Sendable warnings on `AVAssetExportSession` properties.
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             session.exportAsynchronously {
                 switch session.status {
@@ -73,7 +94,7 @@ public final class ExportManager: ObservableObject {
                     continuation.resume(throwing: CancellationError())
                 case .failed:
                     let err = session.error ?? NSError(domain: "easemo.export", code: -2,
-                                                      userInfo: [NSLocalizedDescriptionKey: "Export failed."])
+                                                       userInfo: [NSLocalizedDescriptionKey: "Export failed."])
                     continuation.resume(throwing: err)
                 default:
                     continuation.resume(throwing: NSError(domain: "easemo.export", code: -3,
@@ -81,7 +102,6 @@ public final class ExportManager: ObservableObject {
                 }
             }
         }
-        stopPollingProgress()
 
         switch session.status {
         case .completed:
@@ -111,7 +131,12 @@ public final class ExportManager: ObservableObject {
 
     // MARK: - Progress polling
 
+    /// Start (or restart) the progress poll timer. Idempotent: if a previous
+    /// timer is still scheduled — e.g. a quick re-export, or a path that
+    /// failed before reaching `stopPollingProgress` — it is invalidated
+    /// before installing the new one so timers cannot stack.
     private func startPollingProgress() {
+        stopPollingProgress()
         let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self = self, let session = self.session else { return }
