@@ -10,6 +10,8 @@ enum TestMediaFixtureError: LocalizedError {
     case formatDescriptionCreationFailed(OSStatus)
     case blockBufferCreationFailed(OSStatus)
     case sampleBufferCreationFailed(OSStatus)
+    case pixelBufferCreationFailed(CVReturn)
+    case noFramesProduced
     case writerStartFailed(message: String)
     case writerFinishFailed(message: String)
 
@@ -21,6 +23,10 @@ enum TestMediaFixtureError: LocalizedError {
             return "CMBlockBufferCreateWithMemoryBlock failed (\(status))."
         case .sampleBufferCreationFailed(let status):
             return "CMSampleBufferCreateReady failed (\(status))."
+        case .pixelBufferCreationFailed(let status):
+            return "CVPixelBufferCreate failed (\(status))."
+        case .noFramesProduced:
+            return "Fixture finished without appending any frames."
         case .writerStartFailed(let message):
             return "AVAssetWriter.startWriting failed: \(message)."
         case .writerFinishFailed(let message):
@@ -63,23 +69,35 @@ enum TestMediaFixtures {
 
         let frameCount = max(1, Int(seconds * Double(fps)))
         let timescale = CMTimeScale(fps)
+        var appendedFrames = 0
         for i in 0..<frameCount {
             while !input.isReadyForMoreMediaData {
                 try await Task.sleep(nanoseconds: 1_000_000)
             }
             var pixelBuffer: CVPixelBuffer?
-            CVPixelBufferCreate(kCFAllocatorDefault,
-                                Int(size.width), Int(size.height),
-                                kCVPixelFormatType_32BGRA,
-                                pixelAttributes as CFDictionary,
-                                &pixelBuffer)
-            guard let pb = pixelBuffer else { continue }
+            let pbStatus = CVPixelBufferCreate(kCFAllocatorDefault,
+                                               Int(size.width), Int(size.height),
+                                               kCVPixelFormatType_32BGRA,
+                                               pixelAttributes as CFDictionary,
+                                               &pixelBuffer)
+            guard pbStatus == kCVReturnSuccess, let pb = pixelBuffer else {
+                throw TestMediaFixtureError.pixelBufferCreationFailed(pbStatus)
+            }
             CVPixelBufferLockBaseAddress(pb, [])
             if let base = CVPixelBufferGetBaseAddress(pb) {
                 memset(base, 0, CVPixelBufferGetDataSize(pb))
             }
             CVPixelBufferUnlockBaseAddress(pb, [])
             adaptor.append(pb, withPresentationTime: CMTime(value: CMTimeValue(i), timescale: timescale))
+            appendedFrames += 1
+        }
+        // Belt-and-braces: surface the unlikely "writer finished but the
+        // track is empty" case rather than handing back a 0-frame asset
+        // that downstream tests would treat as legitimate.
+        guard appendedFrames > 0 else {
+            input.markAsFinished()
+            await writer.finishWriting()
+            throw TestMediaFixtureError.noFramesProduced
         }
         input.markAsFinished()
         await writer.finishWriting()
