@@ -15,6 +15,19 @@ import Foundation
 ///    transform it to the configured overlay frame.
 /// 3. Optionally mask the transformed camera layer to a circle.
 /// 4. Composite camera over screen, render to the destination pixel buffer.
+///
+/// **Threading contract.** All mutable state (`renderContext`) is touched
+/// only from `renderQueue`, a private serial dispatch queue: writes happen
+/// inside `renderQueue.sync` from `renderContextChanged(_:)` and the render
+/// pass runs on the same queue via `renderQueue.async` inside
+/// `startRequest(_:)`. The other stored references (`ciContext`,
+/// `renderQueue`) are immutable `let`s. Because no shared mutable state
+/// crosses queues, the compositor is safe to hand to AVFoundation from any
+/// thread; we declare `@unchecked Sendable` to opt out of the strict
+/// Sendable check that AVFoundation's protocol cannot satisfy on its own
+/// (the `[String: Any]` attribute dictionaries are non-Sendable). If new
+/// stored properties are added that hold mutable state, they MUST also be
+/// confined to `renderQueue`, or this annotation must be revisited.
 final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sendable {
 
     /// Hints AVFoundation about the pixel formats we accept and produce.
