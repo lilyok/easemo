@@ -223,6 +223,20 @@ The test target (`easemoTests`) covers the pure-Swift modules:
 - `AppStateTests` — elapsed-time formatter, AppState bindings, default mic / mute state.
 - `VideoComposerAudioTests` — composer-side wiring of the `.spectral` pitch algorithm and mute behavior, exercised against synthesized fixture media (`TestMediaFixtures`).
 
+### LSP / `buildServer.json`
+
+The repository ships without a `buildServer.json`. If you use a Swift LSP
+client outside Xcode (e.g. SourceKit-LSP through neovim or VS Code via
+[`xcode-build-server`](https://github.com/SolaWing/xcode-build-server)),
+generate the config locally — its `build_root` and the path to the
+`xcode-build-server` binary are machine-specific so the file is gitignored:
+
+```bash
+xcode-build-server config \
+    -workspace easemo/easemo.xcodeproj/project.xcworkspace \
+    -scheme easemo
+```
+
 ---
 
 ## Notes & non-goals (v1)

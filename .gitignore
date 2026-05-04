@@ -1,0 +1,19 @@
+# Xcode build artifacts
+build/
+DerivedData/
+*.xcuserstate
+*.xcuserdatad/
+xcuserdata/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Per-machine LSP / build-server config (regenerated locally via
+# `xcode-build-server config -workspace ... -scheme ...`).
+buildServer.json
+
+# macOS noise
+.DS_Store
+*.swp
