@@ -162,7 +162,8 @@ public final class AppState: ObservableObject {
                                                     muteAudio: muteAudio)
             statusMessage = "Exporting…"
             _ = try await exportManager.export(bundle: bundle, to: destination)
-            statusMessage = "Saved to \(destination.lastPathComponent)"
+            // Success UI is handled on the editing screen ("Video exported" + Reveal in Finder).
+            statusMessage = ""
         } catch {
             errorMessage = error.localizedDescription
             statusMessage = ""

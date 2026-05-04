@@ -25,6 +25,7 @@
 		A100000000000000000000AC /* RecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000AC /* RecordingView.swift */; };
 		A100000000000000000000AD /* EditingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000AD /* EditingView.swift */; };
 		A100000000000000000000AE /* CameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000AE /* CameraPreviewView.swift */; };
+		A100000000000000000000B7 /* EasemoTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000B7 /* EasemoTheme.swift */; };
 		A100000000000000000000AF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000AF /* Assets.xcassets */; };
 		A100000000000000000000B0 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000B0 /* Preview Assets.xcassets */; };
 		A100000000000000000000B1 /* OverlayLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000B1 /* OverlayLayoutTests.swift */; };
@@ -64,6 +65,7 @@
 		B100000000000000000000AC /* RecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingView.swift; sourceTree = "<group>"; };
 		B100000000000000000000AD /* EditingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditingView.swift; sourceTree = "<group>"; };
 		B100000000000000000000AE /* CameraPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreviewView.swift; sourceTree = "<group>"; };
+		B100000000000000000000B7 /* EasemoTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EasemoTheme.swift; sourceTree = "<group>"; };
 		B100000000000000000000AF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B100000000000000000000B0 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		B100000000000000000000B1 /* OverlayLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayLayoutTests.swift; sourceTree = "<group>"; };
@@ -199,6 +201,7 @@
 				B100000000000000000000AC /* RecordingView.swift */,
 				B100000000000000000000AD /* EditingView.swift */,
 				B100000000000000000000AE /* CameraPreviewView.swift */,
+				B100000000000000000000B7 /* EasemoTheme.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -338,6 +341,7 @@
 				A100000000000000000000AC /* RecordingView.swift in Sources */,
 				A100000000000000000000AD /* EditingView.swift in Sources */,
 				A100000000000000000000AE /* CameraPreviewView.swift in Sources */,
+				A100000000000000000000B7 /* EasemoTheme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
