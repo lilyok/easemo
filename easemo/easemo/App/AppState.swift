@@ -399,11 +399,9 @@ private struct FloatingRecorderHUD: View {
         Group {
             if shape == .circle {
                 CameraPreviewView(session: session, shape: shape)
-                    .clipShape(Circle())
                     .contentShape(Circle())
             } else {
                 CameraPreviewView(session: session, shape: shape)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
         }

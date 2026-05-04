@@ -153,7 +153,7 @@ struct EditingView: View {
                     seekPlayerToSourceTime(sourceTime)
                 }
             )
-            .frame(height: 72)
+            .frame(height: 84)
         }
     }
 
@@ -464,13 +464,20 @@ private struct TrimTimelineView: View {
     @State private var isDraggingStart = false
     @State private var isDraggingEnd = false
 
+    /// Horizontal inset so trim handles and playhead are not clipped at window edges.
+    private let trackHorizontalInset: CGFloat = 16
+    private let trackAreaHeight: CGFloat = 44
+
     var body: some View {
         GeometryReader { proxy in
             let width = max(proxy.size.width, 1)
             let d = max(duration, 0.1)
-            let startX = CGFloat(start / d) * width
-            let endX = CGFloat(end / d) * width
-            let playheadX = CGFloat(min(max(currentTime, 0), d) / d) * width
+            let trackWidth = max(width - trackHorizontalInset * 2, 1)
+            let startX = trackHorizontalInset + CGFloat(start / d) * trackWidth
+            let endX = trackHorizontalInset + CGFloat(end / d) * trackWidth
+            let playheadX = trackHorizontalInset + CGFloat(min(max(currentTime, 0), d) / d) * trackWidth
+            let barY = (trackAreaHeight - barHeight) / 2
+            let handleCenterY = trackAreaHeight / 2
 
             VStack(spacing: 8) {
                 HStack {
@@ -484,16 +491,18 @@ private struct TrimTimelineView: View {
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 5, style: .continuous)
                         .fill(EasemoTheme.sliderTrackInactive)
-                        .frame(height: barHeight)
+                        .frame(width: trackWidth, height: barHeight)
+                        .offset(x: trackHorizontalInset, y: barY)
 
                     RoundedRectangle(cornerRadius: 5, style: .continuous)
                         .fill(Color.black.opacity(0.45))
-                        .frame(width: max(startX, 0), height: barHeight)
+                        .frame(width: max(startX - trackHorizontalInset, 0), height: barHeight)
+                        .offset(x: trackHorizontalInset, y: barY)
 
                     RoundedRectangle(cornerRadius: 5, style: .continuous)
                         .fill(Color.black.opacity(0.45))
-                        .frame(width: max(width - endX, 0), height: barHeight)
-                        .offset(x: endX)
+                        .frame(width: max(width - trackHorizontalInset - endX, 0), height: barHeight)
+                        .offset(x: endX, y: barY)
 
                     RoundedRectangle(cornerRadius: 5, style: .continuous)
                         .fill(
@@ -504,18 +513,18 @@ private struct TrimTimelineView: View {
                             )
                         )
                         .frame(width: max(endX - startX, handleWidth * 2), height: barHeight)
-                        .offset(x: startX)
+                        .offset(x: startX, y: barY)
                         .shadow(color: EasemoTheme.accentPurple.opacity(0.25), radius: 6, y: 0)
 
                     Capsule()
                         .fill(Color.white.opacity(0.95))
                         .frame(width: 2, height: 22)
-                        .offset(x: playheadX - 1)
+                        .position(x: playheadX, y: handleCenterY)
                         .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
                         .allowsHitTesting(false)
 
                     trimHandle(isLeading: true)
-                        .position(x: startX, y: 14)
+                        .position(x: startX, y: handleCenterY)
                         .highPriorityGesture(
                             DragGesture(minimumDistance: 0)
                                 .onChanged { value in
@@ -523,7 +532,7 @@ private struct TrimTimelineView: View {
                                         isDraggingStart = true
                                         startDragInitial = start
                                     }
-                                    let deltaT = Double(value.translation.width / width) * d
+                                    let deltaT = Double(value.translation.width / trackWidth) * d
                                     let newStart = min(max(startDragInitial + deltaT, 0), end - 0.1)
                                     start = newStart
                                     onScrub(start)
@@ -534,7 +543,7 @@ private struct TrimTimelineView: View {
                         )
 
                     trimHandle(isLeading: false)
-                        .position(x: endX, y: 14)
+                        .position(x: endX, y: handleCenterY)
                         .highPriorityGesture(
                             DragGesture(minimumDistance: 0)
                                 .onChanged { value in
@@ -542,7 +551,7 @@ private struct TrimTimelineView: View {
                                         isDraggingEnd = true
                                         endDragInitial = end
                                     }
-                                    let deltaT = Double(value.translation.width / width) * d
+                                    let deltaT = Double(value.translation.width / trackWidth) * d
                                     let newEnd = min(max(endDragInitial + deltaT, start + 0.1), d)
                                     end = newEnd
                                     onScrub(min(end, max(start, currentTime)))
@@ -552,13 +561,13 @@ private struct TrimTimelineView: View {
                                 }
                         )
                 }
-                .frame(height: 28)
+                .frame(height: trackAreaHeight)
                 .contentShape(Rectangle())
                 .gesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
-                            let x = min(max(value.location.x, 0), width)
-                            onScrub(Double(x / width) * d)
+                            let x = min(max(value.location.x, trackHorizontalInset), trackHorizontalInset + trackWidth)
+                            onScrub(Double((x - trackHorizontalInset) / trackWidth) * d)
                         }
                 )
 

@@ -274,7 +274,6 @@ struct RecordingView: View {
                     CameraPreviewView(session: coordinator.cameraManager.session,
                                       shape: appState.overlay.shape)
                         .frame(width: frame.width, height: frame.height)
-                        .clipShape(Circle())
                         .overlay(Circle().stroke(Color.white.opacity(0.35), lineWidth: 1.5))
                         .position(x: frame.midX, y: frame.midY)
                         .shadow(color: .black.opacity(0.45), radius: 16, y: 8)
@@ -283,7 +282,6 @@ struct RecordingView: View {
                     CameraPreviewView(session: coordinator.cameraManager.session,
                                       shape: appState.overlay.shape)
                         .frame(width: frame.width, height: frame.height)
-                        .clipShape(RoundedRectangle(cornerRadius: EasemoTheme.radiusInput, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: EasemoTheme.radiusInput, style: .continuous)
                                 .stroke(Color.white.opacity(0.35), lineWidth: 1.5)
