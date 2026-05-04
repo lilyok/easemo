@@ -3,6 +3,28 @@ import CoreImage
 import CoreVideo
 import Foundation
 
+/// Errors thrown by `OverlayVideoCompositor.render(request:)`. Modelled as a
+/// typed `LocalizedError` enum so AVFoundation surfaces them to consumers
+/// (`request.finish(with:)`) with stable, pattern-matchable cases instead of
+/// magic NSError codes — matching the style of `ExportError` and
+/// `TestMediaFixtureError` elsewhere in the project.
+public enum CompositorError: LocalizedError, Equatable {
+    /// AVFoundation handed us an instruction that wasn't an `OverlayInstruction`.
+    case unexpectedInstructionType
+    /// `request.renderContext.newPixelBuffer()` returned nil — usually means
+    /// the render context isn't yet configured or is out of pool memory.
+    case renderContextProducedNilBuffer
+
+    public var errorDescription: String? {
+        switch self {
+        case .unexpectedInstructionType:
+            return "Compositor received an unexpected instruction type."
+        case .renderContextProducedNilBuffer:
+            return "Render context returned a nil pixel buffer."
+        }
+    }
+}
+
 /// Custom `AVVideoCompositing` implementation that composites two video tracks
 /// (screen + camera) using Core Image. This is the foundation that lets us
 /// apply non-rectangular masks (circle) and transforms in a pixel-correct way
@@ -70,12 +92,10 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
 
     private func render(request: AVAsynchronousVideoCompositionRequest) throws -> CVPixelBuffer {
         guard let instruction = request.videoCompositionInstruction as? OverlayInstruction else {
-            throw NSError(domain: "easemo.compositor", code: -1,
-                          userInfo: [NSLocalizedDescriptionKey: "Unexpected instruction type."])
+            throw CompositorError.unexpectedInstructionType
         }
         guard let destination = request.renderContext.newPixelBuffer() else {
-            throw NSError(domain: "easemo.compositor", code: -2,
-                          userInfo: [NSLocalizedDescriptionKey: "Render context returned nil pixel buffer."])
+            throw CompositorError.renderContextProducedNilBuffer
         }
 
         let renderSize = request.renderContext.size
