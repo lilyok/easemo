@@ -40,12 +40,30 @@ enum TestMediaFixtureError: LocalizedError {
 /// or microphone capture pipelines (which the test runner cannot exercise).
 enum TestMediaFixtures {
 
+    /// Tear down a partially written fixture so `throws` paths do not leak
+    /// temp files (e.g. when `setUp` fails before `tearDown` assigns URLs).
+    private static func discardFailedFixtureOutput(at url: URL, writer: AVAssetWriter?) {
+        if let writer, writer.status == .writing {
+            writer.cancelWriting()
+        }
+        try? FileManager.default.removeItem(at: url)
+    }
+
     static func makeSilentVideo(seconds: Double,
                                 size: CGSize = CGSize(width: 320, height: 240),
                                 fps: Int = 10) async throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("easemo-test-screen-\(UUID().uuidString).mp4")
+        var keepOutputFile = false
+        var writerForCleanup: AVAssetWriter?
+        defer {
+            if !keepOutputFile {
+                discardFailedFixtureOutput(at: url, writer: writerForCleanup)
+            }
+        }
+
         let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
+        writerForCleanup = writer
         let settings: [String: Any] = [
             AVVideoCodecKey: AVVideoCodecType.h264,
             AVVideoWidthKey: Int(size.width),
@@ -105,6 +123,7 @@ enum TestMediaFixtures {
             throw TestMediaFixtureError.writerFinishFailed(
                 message: writer.error?.localizedDescription ?? "status=\(writer.status.rawValue)")
         }
+        keepOutputFile = true
         return url
     }
 
@@ -112,7 +131,16 @@ enum TestMediaFixtures {
                                 sampleRate: Double = 44_100) async throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("easemo-test-audio-\(UUID().uuidString).m4a")
+        var keepOutputFile = false
+        var writerForCleanup: AVAssetWriter?
+        defer {
+            if !keepOutputFile {
+                discardFailedFixtureOutput(at: url, writer: writerForCleanup)
+            }
+        }
+
         let writer = try AVAssetWriter(outputURL: url, fileType: .m4a)
+        writerForCleanup = writer
         let settings: [String: Any] = [
             AVFormatIDKey: kAudioFormatMPEG4AAC,
             AVNumberOfChannelsKey: 1,
@@ -229,6 +257,7 @@ enum TestMediaFixtures {
             throw TestMediaFixtureError.writerFinishFailed(
                 message: writer.error?.localizedDescription ?? "status=\(writer.status.rawValue)")
         }
+        keepOutputFile = true
         return url
     }
 }
