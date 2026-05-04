@@ -115,7 +115,7 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
         if let timeline = instruction.motionTimeline {
             let rawSeconds = CMTimeGetSeconds(request.compositionTime)
             let compositionSeconds = rawSeconds.isFinite ? max(0, rawSeconds) : 0
-            let sourceSeconds = timeline.trimStartSeconds + compositionSeconds * timeline.playbackSpeed
+            let sourceSeconds = timeline.sourceSeconds(atCompositionTimeSeconds: compositionSeconds)
             let layout = OverlayTimelineSample.layout(atSourceSeconds: sourceSeconds,
                                                       keyframes: timeline.keyframes,
                                                       fallback: timeline.fallbackLayout)

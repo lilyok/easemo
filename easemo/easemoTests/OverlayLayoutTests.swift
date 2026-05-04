@@ -44,4 +44,25 @@ final class OverlayLayoutTests: XCTestCase {
             XCTAssertLessThanOrEqual(frame.maxY, canvas.height, "\(position) overflow bottom")
         }
     }
+
+    func testMotionTimelineMapsCompositionTimeToSourceSeconds() {
+        let timeline = OverlayMotionTimeline(
+            trimStartSeconds: 5,
+            playbackSpeed: 2,
+            keyframes: [],
+            fallbackLayout: .default,
+            cameraAspect: 16.0/9.0
+        )
+        XCTAssertEqual(timeline.sourceSeconds(atCompositionTimeSeconds: 0), 5, accuracy: 1e-9)
+        XCTAssertEqual(timeline.sourceSeconds(atCompositionTimeSeconds: 1), 7, accuracy: 1e-9)
+
+        let slow = OverlayMotionTimeline(
+            trimStartSeconds: 0,
+            playbackSpeed: 0.5,
+            keyframes: [],
+            fallbackLayout: .default,
+            cameraAspect: 16.0/9.0
+        )
+        XCTAssertEqual(slow.sourceSeconds(atCompositionTimeSeconds: 4), 2, accuracy: 1e-9)
+    }
 }

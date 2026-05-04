@@ -34,6 +34,15 @@ public struct OverlayMotionTimeline: Equatable, Sendable {
         self.fallbackLayout = fallbackLayout
         self.cameraAspect = cameraAspect
     }
+
+    /// Map **composition** timeline seconds (0 at output start) → **source** screen seconds
+    /// for sampling overlay keyframes. Undoes trim offset and `scaleTimeRange` speed scaling
+    /// (`compositionDuration = sourceDuration / playbackSpeed`).
+    public func sourceSeconds(atCompositionTimeSeconds compositionSeconds: Double) -> Double {
+        let t = compositionSeconds.isFinite ? max(0, compositionSeconds) : 0
+        let speed = max(playbackSpeed, 1e-6)
+        return trimStartSeconds + t * speed
+    }
 }
 
 public enum OverlayTimelineSample {

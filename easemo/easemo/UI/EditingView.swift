@@ -308,21 +308,23 @@ struct EditingView: View {
             }
 
             HStack(spacing: 12) {
-                Button("Discard") {
+                Button {
                     lastExportedURL = nil
                     appState.backToRecording()
+                } label: {
+                    Text("Discard")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(EasemoTheme.textPrimary)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(EasemoTheme.textPrimary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
+                .buttonStyle(.plain)
                 .background(EasemoTheme.sliderTrackInactive)
                 .clipShape(RoundedRectangle(cornerRadius: EasemoTheme.radiusButton, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: EasemoTheme.radiusButton, style: .continuous)
                         .stroke(EasemoTheme.panelBorder, lineWidth: 1)
                 )
-                .buttonStyle(.plain)
 
                 Button(action: chooseExportDestination) {
                     HStack(spacing: 8) {
@@ -332,13 +334,13 @@ struct EditingView: View {
                             .font(.system(size: 15, weight: .medium))
                     }
                     .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(EasemoTheme.accentGradient)
-                    .clipShape(RoundedRectangle(cornerRadius: EasemoTheme.radiusButton, style: .continuous))
-                    .shadow(color: EasemoTheme.accentPurple.opacity(0.35), radius: 12, y: 5)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .background(EasemoTheme.accentGradient)
+                .clipShape(RoundedRectangle(cornerRadius: EasemoTheme.radiusButton, style: .continuous))
+                .shadow(color: EasemoTheme.accentPurple.opacity(0.35), radius: 12, y: 5)
                 .disabled(isExporting)
                 .opacity(isExporting ? 0.65 : 1)
             }
