@@ -182,7 +182,8 @@ public final class CaptureSessionCoordinator: ObservableObject {
             startTime: recordingManager.startTime,
             duration: duration,
             layout: overlay,
-            overlayMotion: motionKeyframes
+            overlayMotion: motionKeyframes,
+            blurBackgroundBehindWebcam: configuration.blurBackgroundBehindWebcam
         )
         overlayMotionKeyframes.removeAll()
         lastResult = result

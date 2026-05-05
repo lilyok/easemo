@@ -17,6 +17,8 @@
 		A100000000000000000000D2 /* AudioSampleWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000D2 /* AudioSampleWriter.swift */; };
 		A100000000000000000000A7 /* VideoComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000A7 /* VideoComposer.swift */; };
 		A100000000000000000000C0 /* OverlayVideoCompositor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000C0 /* OverlayVideoCompositor.swift */; };
+		A100000000000000000000FA /* WebcamBackgroundBlur.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000FA /* WebcamBackgroundBlur.swift */; };
+		A100000000000000000000FB /* Vision.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B100000000000000000000FB /* Vision.framework */; };
 		A100000000000000000000A8 /* ExportManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000A8 /* ExportManager.swift */; };
 		A100000000000000000000A9 /* RecordingConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000A9 /* RecordingConfiguration.swift */; };
 		A100000000000000000000AA /* RecordingResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000AA /* RecordingResult.swift */; };
@@ -58,6 +60,8 @@
 		B100000000000000000000D2 /* AudioSampleWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSampleWriter.swift; sourceTree = "<group>"; };
 		B100000000000000000000A7 /* VideoComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoComposer.swift; sourceTree = "<group>"; };
 		B100000000000000000000C0 /* OverlayVideoCompositor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayVideoCompositor.swift; sourceTree = "<group>"; };
+		B100000000000000000000FA /* WebcamBackgroundBlur.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebcamBackgroundBlur.swift; sourceTree = "<group>"; };
+		B100000000000000000000FB /* Vision.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Vision.framework; path = System/Library/Frameworks/Vision.framework; sourceTree = SDKROOT; };
 		B100000000000000000000A8 /* ExportManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportManager.swift; sourceTree = "<group>"; };
 		B100000000000000000000A9 /* RecordingConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingConfiguration.swift; sourceTree = "<group>"; };
 		B100000000000000000000AA /* RecordingResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingResult.swift; sourceTree = "<group>"; };
@@ -87,6 +91,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A100000000000000000000FB /* Vision.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -152,6 +157,7 @@
 			children = (
 				B100000000000000000000A7 /* VideoComposer.swift */,
 				B100000000000000000000C0 /* OverlayVideoCompositor.swift */,
+				B100000000000000000000FA /* WebcamBackgroundBlur.swift */,
 			);
 			path = Composition;
 			sourceTree = "<group>";
@@ -336,6 +342,7 @@
 				A100000000000000000000D2 /* AudioSampleWriter.swift in Sources */,
 				A100000000000000000000A7 /* VideoComposer.swift in Sources */,
 				A100000000000000000000C0 /* OverlayVideoCompositor.swift in Sources */,
+				A100000000000000000000FA /* WebcamBackgroundBlur.swift in Sources */,
 				A100000000000000000000A8 /* ExportManager.swift in Sources */,
 				A100000000000000000000A9 /* RecordingConfiguration.swift in Sources */,
 				A100000000000000000000AA /* RecordingResult.swift in Sources */,

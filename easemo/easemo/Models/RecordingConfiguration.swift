@@ -119,6 +119,8 @@ public struct RecordingConfiguration: Equatable {
     public var includeCamera: Bool
     public var includeMicrophone: Bool
     public var overlay: OverlayLayout
+    /// When the webcam overlay is present, blur the **webcam** background (room behind you) in the composed output using Vision person segmentation.
+    public var blurBackgroundBehindWebcam: Bool
     /// Target frame rate for the screen capture stream.
     public var screenFrameRate: Int
     /// Target frame rate for the camera stream.
@@ -127,11 +129,13 @@ public struct RecordingConfiguration: Equatable {
     public init(includeCamera: Bool = true,
                 includeMicrophone: Bool = true,
                 overlay: OverlayLayout = .default,
+                blurBackgroundBehindWebcam: Bool = true,
                 screenFrameRate: Int = 30,
                 cameraFrameRate: Int = 30) {
         self.includeCamera = includeCamera
         self.includeMicrophone = includeMicrophone
         self.overlay = overlay
+        self.blurBackgroundBehindWebcam = blurBackgroundBehindWebcam
         self.screenFrameRate = screenFrameRate
         self.cameraFrameRate = cameraFrameRate
     }

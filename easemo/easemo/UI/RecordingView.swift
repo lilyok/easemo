@@ -180,6 +180,12 @@ struct RecordingView: View {
                 Divider()
                     .background(EasemoTheme.panelBorder)
 
+                labeledToggle(title: "Blur webcam background", isOn: $appState.configuration.blurBackgroundBehindWebcam)
+                    .disabled(coordinator.isRecording)
+                    .opacity(coordinator.isRecording ? 0.45 : 1)
+                Divider()
+                    .background(EasemoTheme.panelBorder)
+
                 VStack(alignment: .leading, spacing: 14) {
                     Text("Webcam")
                         .font(.system(size: 12, weight: .semibold))

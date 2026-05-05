@@ -62,6 +62,38 @@ final class VideoComposerMotionInstructionTests: XCTestCase {
         let first = try XCTUnwrap(instructions.first as? OverlayInstruction)
         XCTAssertNil(first.motionTimeline, "Constant PiP layout should not use motion timeline.")
         XCTAssertEqual(first.shape, .rectangle)
+        XCTAssertTrue(first.blurBackgroundBehindWebcam)
+    }
+
+    func testBlurWebcamBackgroundFlagPropagatesFromRecordingResult() async throws {
+        let screenURL = try XCTUnwrap(screenURL)
+        let cameraURL = try XCTUnwrap(cameraURL)
+        let rectLayout = OverlayLayout(widthFraction: 0.2,
+                                       edgeInset: 16,
+                                       position: .bottomRight,
+                                       shape: .rectangle)
+        let result = RecordingResult(
+            screenURL: screenURL,
+            cameraURL: cameraURL,
+            audioURL: nil,
+            canvasSize: CGSize(width: 320, height: 240),
+            startTime: .zero,
+            duration: CMTime(seconds: 0.5, preferredTimescale: 600),
+            layout: rectLayout,
+            overlayMotion: [],
+            blurBackgroundBehindWebcam: false
+        )
+
+        let bundle = try await VideoComposer().compose(
+            result: result,
+            layout: rectLayout,
+            speed: 1.0,
+            trimStart: 0,
+            trimEnd: 0.5
+        )
+
+        let first = try XCTUnwrap(bundle.videoComposition.instructions.first as? OverlayInstruction)
+        XCTAssertFalse(first.blurBackgroundBehindWebcam)
     }
 
     func testConstantMotionKeyframesUseKeyframeLayoutWhenComposeLayoutDiffers() async throws {

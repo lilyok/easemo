@@ -142,6 +142,7 @@ public final class AppState: ObservableObject {
             trimStartSeconds = 0
             trimEndSeconds = max(0, result.duration.seconds)
             overlay = result.layout
+            configuration.blurBackgroundBehindWebcam = result.blurBackgroundBehindWebcam
             route = .editing(result)
         } catch {
             errorMessage = error.localizedDescription

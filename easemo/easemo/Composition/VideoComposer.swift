@@ -193,7 +193,8 @@ public final class VideoComposer {
             playbackSpeed: clampedSpeed,
             scaledDuration: scaledDuration,
             screenPreferredTransform: screenPreferredTransform,
-            cameraPreferredTransform: cameraPreferredTransform
+            cameraPreferredTransform: cameraPreferredTransform,
+            blurBackgroundBehindWebcam: result.blurBackgroundBehindWebcam
         )
         videoComposition.instructions = instructions
 
@@ -233,7 +234,8 @@ public final class VideoComposer {
                                           playbackSpeed: Double,
                                           scaledDuration: CMTime,
                                           screenPreferredTransform: CGAffineTransform,
-                                          cameraPreferredTransform: CGAffineTransform?) -> [OverlayInstruction] {
+                                          cameraPreferredTransform: CGAffineTransform?,
+                                          blurBackgroundBehindWebcam: Bool) -> [OverlayInstruction] {
         let cameraPersistentID = composedCamera?.trackID
 
         func makeSlice(timeRange: CMTimeRange, layout: OverlayLayout) -> OverlayInstruction {
@@ -246,7 +248,8 @@ public final class VideoComposer {
                 cameraFrame: layout.frame(in: renderSize, cameraAspect: cameraAspect),
                 shape: layout.shape,
                 screenPreferredTransform: screenPreferredTransform,
-                cameraPreferredTransform: cameraPreferredTransform
+                cameraPreferredTransform: cameraPreferredTransform,
+                blurBackgroundBehindWebcam: blurBackgroundBehindWebcam
             )
         }
 
@@ -286,7 +289,8 @@ public final class VideoComposer {
                 cameraFrame: .zero,
                 shape: .rectangle,
                 screenPreferredTransform: screenPreferredTransform,
-                cameraPreferredTransform: cameraPreferredTransform
+                cameraPreferredTransform: cameraPreferredTransform,
+                blurBackgroundBehindWebcam: blurBackgroundBehindWebcam
             )
         ]
     }
