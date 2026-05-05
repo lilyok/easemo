@@ -8,7 +8,7 @@ import Foundation
 final class CameraLiveBackgroundBlurProcessor: NSObject {
 
     private let visionQueue = DispatchQueue(label: "easemo.camera.live-blur.vision", qos: .userInitiated)
-    private let ciContext = CIContext(options: [.useSoftwareRenderer: false])
+    private let ciContext = EasemoCIContext.shared
 
     private let lock = NSLock()
     private var isBusy = false

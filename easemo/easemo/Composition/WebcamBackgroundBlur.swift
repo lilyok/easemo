@@ -1,3 +1,4 @@
+import CoreGraphics
 import CoreImage
 import CoreVideo
 import Vision
@@ -31,11 +32,13 @@ enum WebcamBackgroundBlur {
     /// - Parameter maxLongEdge: When set, the image is scaled so its longer side is at most this value before Vision runs.
     static func applyLiveIfEnabled(_ enabled: Bool, base: CIImage, maxLongEdge: CGFloat? = 640) -> CIImage? {
         guard enabled else { return nil }
-        let workBase = downscaleIfNeeded(base, maxLongEdge: maxLongEdge)
+        let workBase = downscaledForLiveVisionInput(base, maxLongEdge: maxLongEdge)
         return applySegmentationBlur(base: workBase, request: balancedSegmentationRequest)
     }
 
-    private static func downscaleIfNeeded(_ image: CIImage, maxLongEdge: CGFloat?) -> CIImage {
+    /// Scales `image` so its longer side is at most `maxLongEdge` when that cap is set and meaningful.
+    /// Internal for unit tests (`@testable import easemo`).
+    static func downscaledForLiveVisionInput(_ image: CIImage, maxLongEdge: CGFloat?) -> CIImage {
         guard let cap = maxLongEdge, cap > 32 else { return image }
         let extent = image.extent
         let longEdge = max(extent.width, extent.height)

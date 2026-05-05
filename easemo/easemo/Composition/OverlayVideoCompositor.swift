@@ -64,7 +64,7 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
     ]
 
     private let renderQueue = DispatchQueue(label: "easemo.overlay-compositor")
-    private let ciContext = CIContext(options: [.useSoftwareRenderer: false])
+    private let ciContext = EasemoCIContext.shared
     private var renderContext: AVVideoCompositionRenderContext?
 
     func renderContextChanged(_ newRenderContext: AVVideoCompositionRenderContext) {

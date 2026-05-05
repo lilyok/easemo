@@ -120,7 +120,7 @@ private struct CameraVisionPreviewView: NSViewRepresentable {
     }
 
     final class VisionPreviewNSView: NSView {
-        private let ciContext = CIContext(options: [.useSoftwareRenderer: false])
+        private let ciContext = EasemoCIContext.shared
         var displayPixelBuffer: CVPixelBuffer? {
             didSet { refreshContents() }
         }

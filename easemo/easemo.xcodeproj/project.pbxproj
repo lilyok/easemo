@@ -19,6 +19,7 @@
 		A100000000000000000000A7 /* VideoComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000A7 /* VideoComposer.swift */; };
 		A100000000000000000000C0 /* OverlayVideoCompositor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000C0 /* OverlayVideoCompositor.swift */; };
 		A100000000000000000000FA /* WebcamBackgroundBlur.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000FA /* WebcamBackgroundBlur.swift */; };
+		A100000000000000000000FD /* EasemoCIContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000FD /* EasemoCIContext.swift */; };
 		A100000000000000000000FB /* Vision.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B100000000000000000000FB /* Vision.framework */; };
 		A100000000000000000000A8 /* ExportManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000A8 /* ExportManager.swift */; };
 		A100000000000000000000A9 /* RecordingConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000A9 /* RecordingConfiguration.swift */; };
@@ -38,6 +39,7 @@
 		A100000000000000000000D5 /* ExportErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000D5 /* ExportErrorTests.swift */; };
 		A100000000000000000000D6 /* CompositorErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000D6 /* CompositorErrorTests.swift */; };
 		A100000000000000000000D4 /* TestMediaFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000D4 /* TestMediaFixtures.swift */; };
+		A100000000000000000000FE /* WebcamBackgroundBlurTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000FE /* WebcamBackgroundBlurTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -63,6 +65,7 @@
 		B100000000000000000000A7 /* VideoComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoComposer.swift; sourceTree = "<group>"; };
 		B100000000000000000000C0 /* OverlayVideoCompositor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayVideoCompositor.swift; sourceTree = "<group>"; };
 		B100000000000000000000FA /* WebcamBackgroundBlur.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebcamBackgroundBlur.swift; sourceTree = "<group>"; };
+		B100000000000000000000FD /* EasemoCIContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EasemoCIContext.swift; sourceTree = "<group>"; };
 		B100000000000000000000FB /* Vision.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Vision.framework; path = System/Library/Frameworks/Vision.framework; sourceTree = SDKROOT; };
 		B100000000000000000000A8 /* ExportManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportManager.swift; sourceTree = "<group>"; };
 		B100000000000000000000A9 /* RecordingConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingConfiguration.swift; sourceTree = "<group>"; };
@@ -82,6 +85,7 @@
 		B100000000000000000000D5 /* ExportErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportErrorTests.swift; sourceTree = "<group>"; };
 		B100000000000000000000D6 /* CompositorErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompositorErrorTests.swift; sourceTree = "<group>"; };
 		B100000000000000000000D4 /* TestMediaFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestMediaFixtures.swift; sourceTree = "<group>"; };
+		B100000000000000000000FE /* WebcamBackgroundBlurTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebcamBackgroundBlurTests.swift; sourceTree = "<group>"; };
 		B100000000000000000000B3 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B100000000000000000000B4 /* easemo.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = easemo.entitlements; sourceTree = "<group>"; };
 		B100000000000000000000B5 /* easemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = easemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -160,6 +164,7 @@
 			children = (
 				B100000000000000000000A7 /* VideoComposer.swift */,
 				B100000000000000000000C0 /* OverlayVideoCompositor.swift */,
+				B100000000000000000000FD /* EasemoCIContext.swift */,
 				B100000000000000000000FA /* WebcamBackgroundBlur.swift */,
 			);
 			path = Composition;
@@ -193,6 +198,7 @@
 				B100000000000000000000D5 /* ExportErrorTests.swift */,
 				B100000000000000000000D6 /* CompositorErrorTests.swift */,
 				B100000000000000000000D4 /* TestMediaFixtures.swift */,
+				B100000000000000000000FE /* WebcamBackgroundBlurTests.swift */,
 			);
 			path = easemoTests;
 			sourceTree = "<group>";
@@ -346,6 +352,7 @@
 				A100000000000000000000D2 /* AudioSampleWriter.swift in Sources */,
 				A100000000000000000000A7 /* VideoComposer.swift in Sources */,
 				A100000000000000000000C0 /* OverlayVideoCompositor.swift in Sources */,
+				A100000000000000000000FD /* EasemoCIContext.swift in Sources */,
 				A100000000000000000000FA /* WebcamBackgroundBlur.swift in Sources */,
 				A100000000000000000000A8 /* ExportManager.swift in Sources */,
 				A100000000000000000000A9 /* RecordingConfiguration.swift in Sources */,
@@ -370,6 +377,7 @@
 				A100000000000000000000D5 /* ExportErrorTests.swift in Sources */,
 				A100000000000000000000D6 /* CompositorErrorTests.swift in Sources */,
 				A100000000000000000000D4 /* TestMediaFixtures.swift in Sources */,
+				A100000000000000000000FE /* WebcamBackgroundBlurTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
