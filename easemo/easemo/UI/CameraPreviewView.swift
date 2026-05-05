@@ -17,11 +17,13 @@ struct CameraPreviewView: NSViewRepresentable {
 
     func updateNSView(_ nsView: PreviewNSView, context: Context) {
         nsView.shape = shape
-        nsView.layoutSubtreeIfNeeded()
+        nsView.needsLayout = true
     }
 
     final class PreviewNSView: NSView {
         let previewLayer = AVCaptureVideoPreviewLayer()
+        /// Reused so fast resizes do not swap mask instances (avoids one-frame gaps vs. video).
+        private let circleMaskLayer = CAShapeLayer()
         var shape: OverlayShape = .rectangle {
             didSet { needsLayout = true }
         }
@@ -30,27 +32,35 @@ struct CameraPreviewView: NSViewRepresentable {
             super.init(frame: frameRect)
             wantsLayer = true
             layer = CALayer()
-            layer?.backgroundColor = NSColor.black.cgColor
+            // Avoid black “slivers” when the mask and preview settle at different times during layout.
+            layer?.backgroundColor = NSColor.clear.cgColor
             layer?.addSublayer(previewLayer)
+            circleMaskLayer.fillColor = NSColor.white.cgColor
         }
 
         required init?(coder: NSCoder) { fatalError("init(coder:) not implemented") }
 
         override func layout() {
             super.layout()
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
             previewLayer.frame = bounds
             switch shape {
             case .circle:
                 let side = min(bounds.width, bounds.height)
-                let mask = CAShapeLayer()
-                mask.path = CGPath(ellipseIn: CGRect(x: (bounds.width - side)/2,
-                                                     y: (bounds.height - side)/2,
-                                                     width: side, height: side),
-                                   transform: nil)
-                previewLayer.mask = mask
+                let ellipse = CGRect(
+                    x: (bounds.width - side) / 2,
+                    y: (bounds.height - side) / 2,
+                    width: side,
+                    height: side
+                )
+                circleMaskLayer.frame = bounds
+                circleMaskLayer.path = CGPath(ellipseIn: ellipse, transform: nil)
+                previewLayer.mask = circleMaskLayer
             case .rectangle:
                 previewLayer.mask = nil
             }
+            CATransaction.commit()
         }
     }
 }

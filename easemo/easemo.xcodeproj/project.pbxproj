@@ -25,9 +25,11 @@
 		A100000000000000000000AC /* RecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000AC /* RecordingView.swift */; };
 		A100000000000000000000AD /* EditingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000AD /* EditingView.swift */; };
 		A100000000000000000000AE /* CameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000AE /* CameraPreviewView.swift */; };
+		A100000000000000000000B7 /* EasemoTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000B7 /* EasemoTheme.swift */; };
 		A100000000000000000000AF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000AF /* Assets.xcassets */; };
 		A100000000000000000000B0 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000B0 /* Preview Assets.xcassets */; };
 		A100000000000000000000B1 /* OverlayLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000B1 /* OverlayLayoutTests.swift */; };
+		A100000000000000000000B8 /* VideoComposerMotionInstructionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000B8 /* VideoComposerMotionInstructionTests.swift */; };
 		A100000000000000000000B2 /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000B2 /* AppStateTests.swift */; };
 		A100000000000000000000D3 /* VideoComposerAudioTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000D3 /* VideoComposerAudioTests.swift */; };
 		A100000000000000000000D5 /* ExportErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000D5 /* ExportErrorTests.swift */; };
@@ -64,9 +66,11 @@
 		B100000000000000000000AC /* RecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingView.swift; sourceTree = "<group>"; };
 		B100000000000000000000AD /* EditingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditingView.swift; sourceTree = "<group>"; };
 		B100000000000000000000AE /* CameraPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreviewView.swift; sourceTree = "<group>"; };
+		B100000000000000000000B7 /* EasemoTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EasemoTheme.swift; sourceTree = "<group>"; };
 		B100000000000000000000AF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B100000000000000000000B0 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		B100000000000000000000B1 /* OverlayLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayLayoutTests.swift; sourceTree = "<group>"; };
+		B100000000000000000000B8 /* VideoComposerMotionInstructionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoComposerMotionInstructionTests.swift; sourceTree = "<group>"; };
 		B100000000000000000000B2 /* AppStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTests.swift; sourceTree = "<group>"; };
 		B100000000000000000000D3 /* VideoComposerAudioTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoComposerAudioTests.swift; sourceTree = "<group>"; };
 		B100000000000000000000D5 /* ExportErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportErrorTests.swift; sourceTree = "<group>"; };
@@ -174,6 +178,7 @@
 			isa = PBXGroup;
 			children = (
 				B100000000000000000000B1 /* OverlayLayoutTests.swift */,
+				B100000000000000000000B8 /* VideoComposerMotionInstructionTests.swift */,
 				B100000000000000000000B2 /* AppStateTests.swift */,
 				B100000000000000000000D3 /* VideoComposerAudioTests.swift */,
 				B100000000000000000000D5 /* ExportErrorTests.swift */,
@@ -199,6 +204,7 @@
 				B100000000000000000000AC /* RecordingView.swift */,
 				B100000000000000000000AD /* EditingView.swift */,
 				B100000000000000000000AE /* CameraPreviewView.swift */,
+				B100000000000000000000B7 /* EasemoTheme.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -338,6 +344,7 @@
 				A100000000000000000000AC /* RecordingView.swift in Sources */,
 				A100000000000000000000AD /* EditingView.swift in Sources */,
 				A100000000000000000000AE /* CameraPreviewView.swift in Sources */,
+				A100000000000000000000B7 /* EasemoTheme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -346,6 +353,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A100000000000000000000B1 /* OverlayLayoutTests.swift in Sources */,
+				A100000000000000000000B8 /* VideoComposerMotionInstructionTests.swift in Sources */,
 				A100000000000000000000B2 /* AppStateTests.swift in Sources */,
 				A100000000000000000000D3 /* VideoComposerAudioTests.swift in Sources */,
 				A100000000000000000000D5 /* ExportErrorTests.swift in Sources */,

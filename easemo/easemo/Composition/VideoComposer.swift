@@ -254,6 +254,10 @@ public final class VideoComposer {
             return [makeSlice(timeRange: CMTimeRange(start: .zero, duration: scaledDuration), layout: fallbackLayout)]
         }
 
+        if Self.overlayLayoutIsConstantAcrossMotion(keyframes: motionKeyframes) {
+            return [makeSlice(timeRange: CMTimeRange(start: .zero, duration: scaledDuration), layout: fallbackLayout)]
+        }
+
         let timeline = OverlayMotionTimeline(
             trimStartSeconds: trimStart,
             playbackSpeed: playbackSpeed,
@@ -285,5 +289,12 @@ public final class VideoComposer {
     private func loadable(_ asset: AVURLAsset) async throws -> Bool {
         let (isPlayable, _) = try await asset.load(.isPlayable, .duration)
         return isPlayable
+    }
+
+    /// When every motion sample has the same PiP layout, use a single static instruction so the
+    /// custom compositor avoids per-frame motion sampling (more reliable across speed/trim).
+    private static func overlayLayoutIsConstantAcrossMotion(keyframes: [OverlayLayoutKeyframe]) -> Bool {
+        guard let first = keyframes.first else { return true }
+        return keyframes.allSatisfy { $0.layout == first.layout }
     }
 }

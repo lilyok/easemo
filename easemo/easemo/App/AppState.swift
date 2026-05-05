@@ -162,7 +162,8 @@ public final class AppState: ObservableObject {
                                                     muteAudio: muteAudio)
             statusMessage = "Exporting…"
             _ = try await exportManager.export(bundle: bundle, to: destination)
-            statusMessage = "Saved to \(destination.lastPathComponent)"
+            // Success UI is handled on the editing screen ("Video exported" + Reveal in Finder).
+            statusMessage = ""
         } catch {
             errorMessage = error.localizedDescription
             statusMessage = ""
@@ -398,11 +399,9 @@ private struct FloatingRecorderHUD: View {
         Group {
             if shape == .circle {
                 CameraPreviewView(session: session, shape: shape)
-                    .clipShape(Circle())
                     .contentShape(Circle())
             } else {
                 CameraPreviewView(session: session, shape: shape)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
         }

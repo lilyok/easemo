@@ -3,7 +3,7 @@ import AVFoundation
 import AVKit
 import SwiftUI
 
-/// Post-recording editing screen: speed slider, optional preview, export.
+/// Post-recording editing screen: trim, speed, preview, export.
 struct EditingView: View {
     @EnvironmentObject private var appState: AppState
     let recording: RecordingResult
@@ -16,20 +16,29 @@ struct EditingView: View {
     /// Output timeline length after trim + speed (matches export).
     @State private var composedOutputDurationSeconds: Double = 0.1
     @State private var previewRebuildTask: Task<Void, Never>?
+    @State private var lastExportedURL: URL?
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 0) {
             header
-            previewPlayer
-            controls
-            Spacer()
+                .padding(.top, 4)
+            ScrollView {
+                VStack(spacing: 20) {
+                    previewSection
+                    controlsPanel
+                }
+                .padding(.top, 12)
+            }
+            Spacer(minLength: 8)
             actions
         }
-        .padding(28)
-        .background(LinearGradient(colors: [Color(red: 0.07, green: 0.09, blue: 0.13),
-                                            Color(red: 0.05, green: 0.06, blue: 0.10)],
-                                   startPoint: .top, endPoint: .bottom))
+        .padding(.horizontal, 28)
+        .padding(.bottom, 20)
+        .background(easemoEditingBackground)
         .onAppear {
+            appState.statusMessage = ""
+            appState.playbackSpeed = (appState.playbackSpeed * 2).rounded() / 2
+            appState.playbackSpeed = min(max(appState.playbackSpeed, 0.5), 2.0)
             installTimeObserver()
             Task { await rebuildComposedPreview(immediatePlayback: true) }
         }
@@ -59,33 +68,79 @@ struct EditingView: View {
         })
     }
 
+    private var easemoEditingBackground: some View {
+        ZStack {
+            EasemoTheme.bgPrimary
+            LinearGradient(
+                colors: [EasemoTheme.bgGradientTop, EasemoTheme.bgGradientBottom],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .opacity(0.85)
+        }
+        .ignoresSafeArea()
+    }
+
     private var header: some View {
-        HStack {
-            Button(action: { appState.backToRecording() }) {
-                Label("Back", systemImage: "chevron.left")
+        ZStack {
+            HStack {
+                Button(action: { appState.backToRecording() }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("Back")
+                            .font(.system(size: 14, weight: .medium))
+                    }
+                    .foregroundStyle(EasemoTheme.textSecondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(EasemoTheme.sliderTrackInactive.opacity(0.6))
+                    .clipShape(RoundedRectangle(cornerRadius: EasemoTheme.radiusButton, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: EasemoTheme.radiusButton, style: .continuous)
+                            .stroke(EasemoTheme.panelBorder, lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                Spacer()
+                Menu {
+                    Button("Back to recording") { appState.backToRecording() }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(EasemoTheme.textSecondary)
+                        .frame(width: 36, height: 28)
+                        .background(EasemoTheme.sliderTrackInactive.opacity(0.6))
+                        .clipShape(RoundedRectangle(cornerRadius: EasemoTheme.radiusInput, style: .continuous))
+                }
+                .menuStyle(.borderlessButton)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.large)
-            Spacer()
             Text("Edit & Export")
-                .font(.system(size: 22, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white)
-            Spacer()
-            Color.clear.frame(width: 80)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(EasemoTheme.textPrimary)
         }
     }
 
-    private var previewPlayer: some View {
-        VStack(spacing: 12) {
+    private var previewSection: some View {
+        VStack(spacing: 16) {
             if FileManager.default.fileExists(atPath: recording.screenURL.path) {
                 MacVideoPlayerView(player: player)
-                    .frame(maxWidth: .infinity, minHeight: 260, maxHeight: 360)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .frame(maxWidth: .infinity, minHeight: 260, maxHeight: 380)
+                    .clipShape(RoundedRectangle(cornerRadius: EasemoTheme.radiusPanel, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: EasemoTheme.radiusPanel, style: .continuous)
+                            .stroke(EasemoTheme.panelBorder, lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.4), radius: 20, y: 10)
             } else {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(.white.opacity(0.05))
-                    .frame(minHeight: 260, maxHeight: 360)
-                    .overlay(Text("Recording is unavailable").foregroundStyle(.white.opacity(0.6)))
+                RoundedRectangle(cornerRadius: EasemoTheme.radiusPanel, style: .continuous)
+                    .fill(EasemoTheme.sliderTrackInactive.opacity(0.5))
+                    .frame(minHeight: 260, maxHeight: 380)
+                    .overlay(
+                        Text("Recording is unavailable")
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundStyle(EasemoTheme.textMuted)
+                    )
             }
 
             TrimTimelineView(
@@ -98,83 +153,82 @@ struct EditingView: View {
                     seekPlayerToSourceTime(sourceTime)
                 }
             )
-            .frame(height: 40)
+            .frame(height: 84)
         }
     }
 
-    private var controls: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack {
-                Text("Playback Speed")
-                    .foregroundStyle(.white)
-                Spacer()
-                Text(String(format: "%.2fx", appState.playbackSpeed))
-                    .monospacedDigit()
-                    .foregroundStyle(.white.opacity(0.7))
+    private var controlsPanel: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            trimSummaryRow
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Speed: \(formatSpeedLabel(appState.playbackSpeed))")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(EasemoTheme.textPrimary)
+
+                SpeedSnapSliderRow(speed: snappedSpeedBinding)
             }
-            HStack(spacing: 10) {
-                Text("Speed")
-                    .font(.callout)
-                    .foregroundStyle(.white.opacity(0.85))
-                Slider(value: $appState.playbackSpeed, in: 0.5...2.0, step: 0.05)
-                Text("0.5x")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.65))
-                Text("2.0x")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.65))
-            }
+
+            Divider()
+                .background(EasemoTheme.panelBorder)
 
             HStack(spacing: 12) {
                 Text("Audio")
-                    .foregroundStyle(.white)
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundStyle(EasemoTheme.textPrimary)
                 if recording.audioURL != nil {
-                    Toggle("Mute", isOn: $appState.muteAudio)
-                        .toggleStyle(.switch)
-                        .tint(.accentColor)
-                        .foregroundStyle(.white.opacity(0.85))
-                    Spacer()
-                    Text("Pitch preserved at \(String(format: "%.2fx", appState.playbackSpeed)) speed")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.65))
+                    HStack(spacing: 10) {
+                        Text("Mute")
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundStyle(EasemoTheme.textSecondary)
+                        Toggle("", isOn: $appState.muteAudio)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .tint(EasemoTheme.accentPurple)
+                            .accessibilityLabel("Mute audio")
+                    }
                 } else {
                     Spacer()
                     Text("No microphone audio in this recording.")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.55))
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundStyle(EasemoTheme.textMuted)
                 }
-            }
-
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text("Trim")
-                        .foregroundStyle(.white)
-                    Spacer()
-                    Text("\(formatTime(appState.trimStartSeconds)) - \(formatTime(appState.trimEndSeconds))")
-                        .font(.callout.monospacedDigit())
-                        .foregroundStyle(.white.opacity(0.75))
-                }
-                HStack {
-                    Text("Start")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.75))
-                    Text(formatTime(appState.trimStartSeconds))
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.white.opacity(0.7))
-                }
-                HStack {
-                    Text("End")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.75))
-                    Text(formatTime(appState.trimEndSeconds))
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.white.opacity(0.7))
-                }
+                Spacer(minLength: 0)
             }
         }
         .padding(20)
-        .background(.white.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .easemoPanelStyle()
+    }
+
+    private var trimSummaryRow: some View {
+        HStack {
+            Text("Trim")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(EasemoTheme.textMuted)
+                .textCase(.uppercase)
+                .tracking(0.5)
+            Spacer()
+            Text("\(formatTime(appState.trimStartSeconds)) → \(formatTime(appState.trimEndSeconds))")
+                .font(.system(size: 13, weight: .medium).monospacedDigit())
+                .foregroundStyle(EasemoTheme.textSecondary)
+        }
+    }
+
+    private var snappedSpeedBinding: Binding<Double> {
+        Binding(
+            get: { appState.playbackSpeed },
+            set: { newValue in
+                let stepped = (newValue * 2).rounded() / 2
+                appState.playbackSpeed = min(max(stepped, 0.5), 2.0)
+            }
+        )
+    }
+
+    private func formatSpeedLabel(_ value: Double) -> String {
+        if value.truncatingRemainder(dividingBy: 1) == 0 {
+            return String(format: "%.0f×", value)
+        }
+        return String(format: "%.1f×", value)
     }
 
     private var trimStartBinding: Binding<Double> {
@@ -207,29 +261,82 @@ struct EditingView: View {
     }
 
     private var actions: some View {
-        VStack(spacing: 12) {
-            if !appState.statusMessage.isEmpty {
-                Text(appState.statusMessage)
-                    .font(.callout.monospacedDigit())
-                    .foregroundStyle(.white.opacity(0.85))
-            }
-            HStack(spacing: 12) {
-                Button("Discard", role: .destructive) {
-                    appState.backToRecording()
+        VStack(alignment: .leading, spacing: 12) {
+            if let url = lastExportedURL {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(EasemoTheme.accentPurple)
+                        Text("Video exported")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(EasemoTheme.textPrimary)
+                    }
+                    Button(action: { revealInFinder(url) }) {
+                        Text("Reveal in Finder")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(EasemoTheme.accentPurple)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(EasemoTheme.sliderTrackInactive.opacity(0.55))
+                .clipShape(RoundedRectangle(cornerRadius: EasemoTheme.radiusPanel, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: EasemoTheme.radiusPanel, style: .continuous)
+                        .stroke(EasemoTheme.panelBorder, lineWidth: 1)
+                )
+            }
+
+            if isExporting || (!appState.statusMessage.isEmpty && lastExportedURL == nil) {
+                Text(appState.statusMessage.isEmpty ? "Working…" : appState.statusMessage)
+                    .font(.system(size: 13, weight: .regular).monospacedDigit())
+                    .foregroundStyle(EasemoTheme.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            HStack(spacing: 12) {
+                Button {
+                    lastExportedURL = nil
+                    appState.backToRecording()
+                } label: {
+                    Text("Discard")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(EasemoTheme.textPrimary)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .background(EasemoTheme.sliderTrackInactive)
+                .clipShape(RoundedRectangle(cornerRadius: EasemoTheme.radiusButton, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: EasemoTheme.radiusButton, style: .continuous)
+                        .stroke(EasemoTheme.panelBorder, lineWidth: 1)
+                )
 
                 Button(action: chooseExportDestination) {
-                    Label(isExporting ? "Exporting…" : "Export Video",
-                          systemImage: "square.and.arrow.up")
-                        .frame(minWidth: 180)
+                    HStack(spacing: 8) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text(isExporting ? "Exporting…" : "Export Video")
+                            .font(.system(size: 15, weight: .medium))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .buttonStyle(.plain)
+                .background(EasemoTheme.accentGradient)
+                .clipShape(RoundedRectangle(cornerRadius: EasemoTheme.radiusButton, style: .continuous))
+                .shadow(color: EasemoTheme.accentPurple.opacity(0.35), radius: 12, y: 5)
                 .disabled(isExporting)
+                .opacity(isExporting ? 0.65 : 1)
             }
         }
+    }
+
+    private func revealInFinder(_ url: URL) {
+        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
     private func chooseExportDestination() {
@@ -241,9 +348,13 @@ struct EditingView: View {
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
         isExporting = true
+        lastExportedURL = nil
         Task {
             await appState.export(result: recording, to: url)
             isExporting = false
+            if appState.errorMessage == nil {
+                lastExportedURL = url
+            }
         }
     }
 
@@ -263,16 +374,13 @@ struct EditingView: View {
         let layout = appState.overlay
         do {
             let bundle = try await appState.composer.compose(result: recording,
-                                                               layout: layout,
-                                                               speed: appState.playbackSpeed,
-                                                               trimStart: appState.trimStartSeconds,
-                                                               trimEnd: appState.trimEndSeconds,
-                                                               muteAudio: appState.muteAudio)
+                                                             layout: layout,
+                                                             speed: appState.playbackSpeed,
+                                                             trimStart: appState.trimStartSeconds,
+                                                             trimEnd: appState.trimEndSeconds,
+                                                             muteAudio: appState.muteAudio)
             let item = AVPlayerItem(asset: bundle.composition)
             item.videoComposition = bundle.videoComposition
-            // Match export: use spectral (pitch-preserving) time stretch when
-            // playing back at non-1× speeds so the preview sounds the same as
-            // the exported file.
             item.audioTimePitchAlgorithm = .spectral
             if let audioMix = bundle.audioMix {
                 item.audioMix = audioMix
@@ -289,7 +397,6 @@ struct EditingView: View {
                 player.play()
             }
         } catch {
-            // Fallback so UI still plays something usable.
             player.replaceCurrentItem(with: AVPlayerItem(url: recording.screenURL))
             composedOutputDurationSeconds = recording.duration.seconds
         }
@@ -330,6 +437,56 @@ struct EditingView: View {
     }
 }
 
+// MARK: - Speed control (aligned ticks + labels)
+
+private struct SpeedSnapSliderRow: View {
+    @Binding var speed: Double
+    private let marks: [Double] = [0.5, 1.0, 1.5, 2.0]
+    /// Matches AppKit slider horizontal padding so thumb centers line up with labels.
+    private let sliderHorizontalInset: CGFloat = 10
+
+    var body: some View {
+        GeometryReader { geo in
+            let totalW = max(geo.size.width, 1)
+            let trackW = max(totalW - sliderHorizontalInset * 2, 1)
+            let labelY: CGFloat = 30
+
+            ZStack(alignment: .topLeading) {
+                Slider(value: $speed, in: 0.5...2.0, step: 0.5)
+                    .tint(EasemoTheme.accentPurple)
+                    .padding(.horizontal, sliderHorizontalInset)
+
+                ForEach(marks, id: \.self) { mark in
+                    let u = (mark - 0.5) / 1.5
+                    let x = sliderHorizontalInset + CGFloat(u) * trackW
+                    Capsule()
+                        .fill(EasemoTheme.textMuted.opacity(0.45))
+                        .frame(width: 2, height: 6)
+                        .position(x: x, y: 10)
+                        .allowsHitTesting(false)
+
+                    let selected = abs(speed - mark) < 0.01
+                    Text(Self.speedTickLabel(mark))
+                        .font(.system(size: 12, weight: .regular).monospacedDigit())
+                        .foregroundStyle(selected ? EasemoTheme.accentPurple : EasemoTheme.textSecondary)
+                        .position(x: x, y: labelY)
+                        .allowsHitTesting(false)
+                }
+            }
+        }
+        .frame(height: 48)
+    }
+
+    private static func speedTickLabel(_ value: Double) -> String {
+        if value.truncatingRemainder(dividingBy: 1) == 0 {
+            return String(format: "%.0f×", value)
+        }
+        return String(format: "%.1f×", value)
+    }
+}
+
+// MARK: - Trim timeline
+
 private struct TrimTimelineView: View {
     @Binding var start: Double
     @Binding var end: Double
@@ -337,52 +494,151 @@ private struct TrimTimelineView: View {
     let currentTime: Double
     let onScrub: (Double) -> Void
 
+    private let barHeight: CGFloat = 10
+    private let handleWidth: CGFloat = 10
+
+    @State private var startDragInitial: Double = 0
+    @State private var endDragInitial: Double = 0
+    @State private var isDraggingStart = false
+    @State private var isDraggingEnd = false
+
+    /// Horizontal inset so trim handles and playhead are not clipped at window edges.
+    private let trackHorizontalInset: CGFloat = 16
+    private let trackAreaHeight: CGFloat = 44
+
     var body: some View {
         GeometryReader { proxy in
             let width = max(proxy.size.width, 1)
             let d = max(duration, 0.1)
-            let startX = CGFloat(start / d) * width
-            let endX = CGFloat(end / d) * width
-            let playheadX = CGFloat(min(max(currentTime, 0), d) / d) * width
+            let trackWidth = max(width - trackHorizontalInset * 2, 1)
+            let startX = trackHorizontalInset + CGFloat(start / d) * trackWidth
+            let endX = trackHorizontalInset + CGFloat(end / d) * trackWidth
+            let playheadX = trackHorizontalInset + CGFloat(min(max(currentTime, 0), d) / d) * trackWidth
+            let barY = (trackAreaHeight - barHeight) / 2
+            let handleCenterY = trackAreaHeight / 2
 
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(.white.opacity(0.16))
-                    .frame(height: 8)
-                Capsule()
-                    .fill(.blue.opacity(0.9))
-                    .frame(width: max(endX - startX, 8), height: 8)
-                    .offset(x: startX)
-                Rectangle()
-                    .fill(.white.opacity(0.85))
-                    .frame(width: 2, height: 20)
-                    .offset(x: playheadX)
-                Circle()
-                    .fill(.white)
-                    .frame(width: 16, height: 16)
-                    .offset(x: startX - 8)
-                    .gesture(DragGesture(minimumDistance: 0).onChanged { value in
-                        let x = min(max(value.location.x, 0), endX - 8)
-                        start = Double(x / width) * d
-                        onScrub(start)
-                    })
-                Circle()
-                    .fill(.white)
-                    .frame(width: 16, height: 16)
-                    .offset(x: endX - 8)
-                    .gesture(DragGesture(minimumDistance: 0).onChanged { value in
-                        let x = max(min(value.location.x, width), startX + 8)
-                        end = Double(x / width) * d
-                        onScrub(min(end, max(start, currentTime)))
-                    })
+            VStack(spacing: 8) {
+                HStack {
+                    Text(formatClock(0))
+                    Spacer()
+                    Text(formatClock(d))
+                }
+                .font(.system(size: 11, weight: .medium).monospacedDigit())
+                .foregroundStyle(EasemoTheme.textMuted)
+
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(EasemoTheme.sliderTrackInactive)
+                        .frame(width: trackWidth, height: barHeight)
+                        .offset(x: trackHorizontalInset, y: barY)
+
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(Color.black.opacity(0.45))
+                        .frame(width: max(startX - trackHorizontalInset, 0), height: barHeight)
+                        .offset(x: trackHorizontalInset, y: barY)
+
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(Color.black.opacity(0.45))
+                        .frame(width: max(width - trackHorizontalInset - endX, 0), height: barHeight)
+                        .offset(x: endX, y: barY)
+
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [EasemoTheme.accentPurple.opacity(0.95), EasemoTheme.accentIndigo.opacity(0.95)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: max(endX - startX, handleWidth * 2), height: barHeight)
+                        .offset(x: startX, y: barY)
+                        .shadow(color: EasemoTheme.accentPurple.opacity(0.25), radius: 6, y: 0)
+
+                    Capsule()
+                        .fill(Color.white.opacity(0.95))
+                        .frame(width: 2, height: 22)
+                        .position(x: playheadX, y: handleCenterY)
+                        .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
+                        .allowsHitTesting(false)
+
+                    trimHandle(isLeading: true)
+                        .position(x: startX, y: handleCenterY)
+                        .highPriorityGesture(
+                            DragGesture(minimumDistance: 0)
+                                .onChanged { value in
+                                    if !isDraggingStart {
+                                        isDraggingStart = true
+                                        startDragInitial = start
+                                    }
+                                    let deltaT = Double(value.translation.width / trackWidth) * d
+                                    let newStart = min(max(startDragInitial + deltaT, 0), end - 0.1)
+                                    start = newStart
+                                    onScrub(start)
+                                }
+                                .onEnded { _ in
+                                    isDraggingStart = false
+                                }
+                        )
+
+                    trimHandle(isLeading: false)
+                        .position(x: endX, y: handleCenterY)
+                        .highPriorityGesture(
+                            DragGesture(minimumDistance: 0)
+                                .onChanged { value in
+                                    if !isDraggingEnd {
+                                        isDraggingEnd = true
+                                        endDragInitial = end
+                                    }
+                                    let deltaT = Double(value.translation.width / trackWidth) * d
+                                    let newEnd = min(max(endDragInitial + deltaT, start + 0.1), d)
+                                    end = newEnd
+                                    onScrub(min(end, max(start, currentTime)))
+                                }
+                                .onEnded { _ in
+                                    isDraggingEnd = false
+                                }
+                        )
+                }
+                .frame(height: trackAreaHeight)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            let x = min(max(value.location.x, trackHorizontalInset), trackHorizontalInset + trackWidth)
+                            onScrub(Double((x - trackHorizontalInset) / trackWidth) * d)
+                        }
+                )
+
+                HStack {
+                    Text("Start \(formatClock(start))")
+                    Spacer()
+                    Text("End \(formatClock(end))")
+                }
+                .font(.system(size: 11, weight: .regular).monospacedDigit())
+                .foregroundStyle(EasemoTheme.textSecondary)
             }
-            .frame(maxHeight: .infinity)
-            .contentShape(Rectangle())
-            .gesture(DragGesture(minimumDistance: 0).onChanged { value in
-                let x = min(max(value.location.x, 0), width)
-                onScrub(Double(x / width) * d)
-            })
         }
+    }
+
+    private func trimHandle(isLeading: Bool) -> some View {
+        RoundedRectangle(cornerRadius: 3, style: .continuous)
+            .fill(Color(red: 0.94, green: 0.95, blue: 0.97))
+            .frame(width: handleWidth, height: 26)
+            .overlay(
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(EasemoTheme.sliderTrackInactive)
+                    .frame(width: 2, height: 12)
+                    .offset(x: isLeading ? 1 : -1)
+            )
+            .shadow(color: .black.opacity(0.35), radius: 4, y: 2)
+    }
+
+    private func formatClock(_ seconds: Double) -> String {
+        let t = max(0, seconds)
+        let total = Int(t.rounded(.towardZero))
+        let m = total / 60
+        let s = total % 60
+        return String(format: "%02d:%02d", m, s)
     }
 }
 
