@@ -155,7 +155,7 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
                     let radius = min(pipFrame.width, pipFrame.height) / 2.0
                     let centerX = pipFrame.origin.x + pipFrame.width / 2.0
                     let centerY = flippedY + pipFrame.height / 2.0
-                    let mask = CIFilter(name: "CIRadialGradient", parameters: [
+                    let radialMask = CIFilter(name: "CIRadialGradient", parameters: [
                         "inputCenter": CIVector(x: centerX, y: centerY),
                         "inputRadius0": radius - 1,
                         "inputRadius1": radius,
@@ -163,10 +163,17 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
                         "inputColor1": CIColor(red: 0, green: 0, blue: 0, alpha: 0)
                     ])?.outputImage?.cropped(to: fullCanvas)
 
-                    if let mask = mask {
+                    let rectClip = CGRect(x: pipFrame.origin.x,
+                                          y: flippedY,
+                                          width: pipFrame.width,
+                                          height: pipFrame.height).intersection(fullCanvas)
+                    let maskImage = radialMask ?? Self.rectangularAlphaMask(fullCanvas: fullCanvas,
+                                                                            clipRect: rectClip,
+                                                                            clearBackground: clearBG)
+                    if let maskImage {
                         camera = camera.applyingFilter("CIBlendWithMask", parameters: [
                             kCIInputBackgroundImageKey: clearBG,
-                            kCIInputMaskImageKey: mask
+                            kCIInputMaskImageKey: maskImage
                         ])
                     }
                 } else {
@@ -175,9 +182,9 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
                                           y: flippedY,
                                           width: pipFrame.width,
                                           height: pipFrame.height).intersection(fullCanvas)
-                    if clipRect.width > 1, clipRect.height > 1 {
-                        let whiteRect = CIImage(color: CIColor(red: 1, green: 1, blue: 1, alpha: 1)).cropped(to: clipRect)
-                        let rectMask = whiteRect.composited(over: clearBG).cropped(to: fullCanvas)
+                    if let rectMask = Self.rectangularAlphaMask(fullCanvas: fullCanvas,
+                                                                clipRect: clipRect,
+                                                                clearBackground: clearBG) {
                         camera = camera.applyingFilter("CIBlendWithMask", parameters: [
                             kCIInputBackgroundImageKey: clearBG,
                             kCIInputMaskImageKey: rectMask
@@ -206,6 +213,16 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
         let base = CIImage(cvPixelBuffer: buffer)
         if preferredTransform.isIdentity { return base }
         return base.transformed(by: preferredTransform)
+    }
+
+    /// Hard-edged alpha mask for PiP rectangle clipping (shared by rectangle PiP and circle fallback).
+    private static func rectangularAlphaMask(fullCanvas: CGRect,
+                                             clipRect: CGRect,
+                                             clearBackground clearBG: CIImage) -> CIImage? {
+        let clip = clipRect.intersection(fullCanvas)
+        guard clip.width > 1, clip.height > 1 else { return nil }
+        let whiteRect = CIImage(color: CIColor(red: 1, green: 1, blue: 1, alpha: 1)).cropped(to: clip)
+        return whiteRect.composited(over: clearBG).cropped(to: fullCanvas)
     }
 
     private func scaledToFit(_ image: CIImage, in size: CGSize) -> CIImage {
