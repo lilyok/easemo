@@ -163,6 +163,11 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
             output = camera.composited(over: output)
         }
 
+        // Rectangle PiP skips `CIBlendWithMask` (circle-only). Without an explicit crop, the
+        // composited graph can carry an **infinite** CI extent; `ciContext.render` then produces
+        // a black frame. Always clamp to the render rect before writing pixels.
+        output = output.cropped(to: renderRect)
+
         ciContext.render(output, to: destination,
                          bounds: CGRect(origin: .zero, size: renderSize),
                          colorSpace: CGColorSpaceCreateDeviceRGB())

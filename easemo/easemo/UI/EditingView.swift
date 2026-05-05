@@ -166,23 +166,18 @@ struct EditingView: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(EasemoTheme.textPrimary)
 
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("0.5×")
-                        .font(.system(size: 11, weight: .regular))
-                        .foregroundStyle(EasemoTheme.textMuted)
+                let speedMarks: [Double] = [0.5, 1.0, 1.5, 2.0]
+                VStack(alignment: .leading, spacing: 6) {
                     Slider(value: snappedSpeedBinding, in: 0.5...2.0, step: 0.5)
                         .tint(EasemoTheme.accentPurple)
-                    Text("2×")
-                        .font(.system(size: 11, weight: .regular))
-                        .foregroundStyle(EasemoTheme.textMuted)
-                }
-
-                HStack(spacing: 0) {
-                    ForEach([0.5, 1.0, 1.5, 2.0], id: \.self) { mark in
-                        Text(formatSpeedLabel(mark))
-                            .font(.system(size: 10, weight: .regular).monospacedDigit())
-                            .foregroundStyle(abs(appState.playbackSpeed - mark) < 0.01 ? EasemoTheme.accentPurple : EasemoTheme.textMuted)
-                            .frame(maxWidth: .infinity)
+                    HStack(spacing: 0) {
+                        ForEach(speedMarks, id: \.self) { mark in
+                            let selected = abs(appState.playbackSpeed - mark) < 0.01
+                            Text(formatSpeedLabel(mark))
+                                .font(.system(size: 12, weight: .regular).monospacedDigit())
+                                .foregroundStyle(selected ? EasemoTheme.accentPurple : EasemoTheme.textSecondary)
+                                .frame(maxWidth: .infinity)
+                        }
                     }
                 }
             }
@@ -195,10 +190,16 @@ struct EditingView: View {
                     .font(.system(size: 14, weight: .regular))
                     .foregroundStyle(EasemoTheme.textPrimary)
                 if recording.audioURL != nil {
-                    Toggle("Mute", isOn: $appState.muteAudio)
-                        .toggleStyle(.switch)
-                        .tint(EasemoTheme.accentPurple)
-                        .font(.system(size: 14, weight: .regular))
+                    HStack(spacing: 10) {
+                        Text("Mute")
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundStyle(EasemoTheme.textSecondary)
+                        Toggle("", isOn: $appState.muteAudio)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .tint(EasemoTheme.accentPurple)
+                            .accessibilityLabel("Mute audio")
+                    }
                 } else {
                     Spacer()
                     Text("No microphone audio in this recording.")
@@ -238,9 +239,9 @@ struct EditingView: View {
 
     private func formatSpeedLabel(_ value: Double) -> String {
         if value.truncatingRemainder(dividingBy: 1) == 0 {
-            return String(format: "%.0fx", value)
+            return String(format: "%.0f×", value)
         }
-        return String(format: "%.1fx", value)
+        return String(format: "%.1f×", value)
     }
 
     private var trimStartBinding: Binding<Double> {
