@@ -84,7 +84,7 @@ struct AdaptiveCameraPreviewView: View {
                             .controlSize(.small)
                             .tint(.white)
                     }
-                    CameraVisionPreviewView(cameraManager: cameraManager, shape: shape)
+                    CameraVisionPreviewView(cameraManager: cameraManager)
                 }
                 .clipShape(shape == .circle ? AnyShape(Circle()) : AnyShape(Rectangle()))
             } else {
@@ -110,25 +110,17 @@ private struct AnyShape: Shape {
 /// Displays the latest `CVPixelBuffer` produced by `CameraLiveBackgroundBlurProcessor`.
 private struct CameraVisionPreviewView: NSViewRepresentable {
     @ObservedObject var cameraManager: CameraManager
-    var shape: OverlayShape
 
     func makeNSView(context: Context) -> VisionPreviewNSView {
-        let v = VisionPreviewNSView()
-        v.shape = shape
-        return v
+        VisionPreviewNSView()
     }
 
     func updateNSView(_ nsView: VisionPreviewNSView, context: Context) {
-        nsView.shape = shape
         nsView.displayPixelBuffer = cameraManager.liveBlurPreviewPixelBuffer
     }
 
     final class VisionPreviewNSView: NSView {
         private let ciContext = CIContext(options: [.useSoftwareRenderer: false])
-        private let circleMaskLayer = CAShapeLayer()
-        var shape: OverlayShape = .rectangle {
-            didSet { needsLayout = true }
-        }
         var displayPixelBuffer: CVPixelBuffer? {
             didSet { refreshContents() }
         }
@@ -138,32 +130,12 @@ private struct CameraVisionPreviewView: NSViewRepresentable {
             wantsLayer = true
             layer?.contentsGravity = .resizeAspectFill
             layer?.backgroundColor = NSColor.black.withAlphaComponent(0.2).cgColor
-            circleMaskLayer.fillColor = NSColor.white.cgColor
         }
 
         required init?(coder: NSCoder) { fatalError("init(coder:) not implemented") }
 
         override func layout() {
             super.layout()
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            let b = bounds
-            switch shape {
-            case .circle:
-                let side = min(b.width, b.height)
-                let ellipse = CGRect(
-                    x: (b.width - side) / 2,
-                    y: (b.height - side) / 2,
-                    width: side,
-                    height: side
-                )
-                circleMaskLayer.frame = b
-                circleMaskLayer.path = CGPath(ellipseIn: ellipse, transform: nil)
-                layer?.mask = circleMaskLayer
-            case .rectangle:
-                layer?.mask = nil
-            }
-            CATransaction.commit()
             refreshContents()
         }
 

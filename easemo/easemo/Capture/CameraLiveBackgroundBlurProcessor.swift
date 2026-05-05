@@ -1,4 +1,3 @@
-import AVFoundation
 import CoreGraphics
 import CoreImage
 import CoreVideo
@@ -47,7 +46,7 @@ final class CameraLiveBackgroundBlurProcessor: NSObject {
             defer { self.finishVisionPass() }
 
             let base = CIImage(cvPixelBuffer: bufferCopy)
-            guard let blurred = WebcamBackgroundBlur.applyLiveIfEnabled(true, base: base) else { return }
+            guard let blurred = WebcamBackgroundBlur.applyLiveIfEnabled(true, base: base, maxLongEdge: 640) else { return }
 
             let extent = blurred.extent
             let w = max(2, Int(ceil(extent.width)))
