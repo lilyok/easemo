@@ -1,4 +1,7 @@
 import AVFoundation
+import AppKit
+import CoreImage
+import CoreVideo
 import SwiftUI
 
 /// SwiftUI wrapper around `AVCaptureVideoPreviewLayer` so the live webcam feed
@@ -61,6 +64,94 @@ struct CameraPreviewView: NSViewRepresentable {
                 previewLayer.mask = nil
             }
             CATransaction.commit()
+        }
+    }
+}
+
+/// Shows either the low-latency preview layer or Vision-blurred frames from `CameraManager`.
+struct AdaptiveCameraPreviewView: View {
+    let session: AVCaptureSession
+    @ObservedObject var cameraManager: CameraManager
+    var shape: OverlayShape
+
+    var body: some View {
+        Group {
+            if cameraManager.blurBackgroundEnabled {
+                ZStack {
+                    if cameraManager.liveBlurPreviewPixelBuffer == nil {
+                        Color.black.opacity(0.35)
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(.white)
+                    }
+                    CameraVisionPreviewView(cameraManager: cameraManager)
+                }
+                .clipShape(shape == .circle ? AnyShape(Circle()) : AnyShape(Rectangle()))
+            } else {
+                CameraPreviewView(session: session, shape: shape)
+            }
+        }
+    }
+}
+
+/// Type-erased `Shape` so we can switch circle vs rectangle without duplicating view trees.
+private struct AnyShape: Shape {
+    private let pathBuilder: (CGRect) -> Path
+
+    init<S: Shape>(_ shape: S) {
+        pathBuilder = { rect in shape.path(in: rect) }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        pathBuilder(rect)
+    }
+}
+
+/// Displays the latest `CVPixelBuffer` produced by `CameraLiveBackgroundBlurProcessor`.
+private struct CameraVisionPreviewView: NSViewRepresentable {
+    @ObservedObject var cameraManager: CameraManager
+
+    func makeNSView(context: Context) -> VisionPreviewNSView {
+        VisionPreviewNSView()
+    }
+
+    func updateNSView(_ nsView: VisionPreviewNSView, context: Context) {
+        nsView.displayPixelBuffer = cameraManager.liveBlurPreviewPixelBuffer
+    }
+
+    final class VisionPreviewNSView: NSView {
+        private let ciContext = EasemoCIContext.shared
+        var displayPixelBuffer: CVPixelBuffer? {
+            didSet { refreshContents() }
+        }
+
+        override init(frame frameRect: NSRect) {
+            super.init(frame: frameRect)
+            wantsLayer = true
+            layer?.contentsGravity = .resizeAspectFill
+            layer?.backgroundColor = NSColor.black.withAlphaComponent(0.2).cgColor
+        }
+
+        required init?(coder: NSCoder) { fatalError("init(coder:) not implemented") }
+
+        override func layout() {
+            super.layout()
+            refreshContents()
+        }
+
+        private func refreshContents() {
+            guard let pb = displayPixelBuffer else {
+                layer?.contents = nil
+                return
+            }
+            let ci = CIImage(cvPixelBuffer: pb)
+            let extent = ci.extent.integral
+            guard extent.width > 1, extent.height > 1,
+                  let cg = ciContext.createCGImage(ci, from: extent) else {
+                layer?.contents = nil
+                return
+            }
+            layer?.contents = cg
         }
     }
 }

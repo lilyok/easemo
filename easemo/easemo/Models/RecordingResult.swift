@@ -25,6 +25,8 @@ public struct RecordingResult: Equatable {
     public let layout: OverlayLayout
     /// PiP layout over recording time — non-empty enables moving overlay in export/preview.
     public let overlayMotion: [OverlayLayoutKeyframe]
+    /// Whether export should blur the webcam’s real-world background (Vision); matches the choice at recording start.
+    public let blurBackgroundBehindWebcam: Bool
 
     public init(screenURL: URL,
                 cameraURL: URL?,
@@ -33,7 +35,8 @@ public struct RecordingResult: Equatable {
                 startTime: CMTime,
                 duration: CMTime,
                 layout: OverlayLayout,
-                overlayMotion: [OverlayLayoutKeyframe] = []) {
+                overlayMotion: [OverlayLayoutKeyframe] = [],
+                blurBackgroundBehindWebcam: Bool = true) {
         self.screenURL = screenURL
         self.cameraURL = cameraURL
         self.audioURL = audioURL
@@ -42,5 +45,6 @@ public struct RecordingResult: Equatable {
         self.duration = duration
         self.layout = layout
         self.overlayMotion = overlayMotion
+        self.blurBackgroundBehindWebcam = blurBackgroundBehindWebcam
     }
 }

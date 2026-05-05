@@ -34,9 +34,9 @@ public enum CompositorError: LocalizedError, Equatable {
 /// 1. Pull the source pixel buffer for the screen track and convert to a
 ///    `CIImage`.
 /// 2. Pull the source pixel buffer for the camera track (if present) and
-///    transform it to the configured overlay frame.
-/// 3. Optionally mask the transformed camera layer to a circle.
-/// 4. Composite camera over screen, render to the destination pixel buffer.
+///    apply `preferredTransform` so CI space matches decode orientation.
+/// 3. Optionally blur the **webcam** background (Vision person segmentation + Core Image).
+/// 4. Scale / position the camera to the PiP rect, apply shape mask, composite over screen.
 ///
 /// **Threading contract.** All mutable state (`renderContext`) is touched
 /// only from `renderQueue`, a private serial dispatch queue: writes happen
@@ -64,7 +64,7 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
     ]
 
     private let renderQueue = DispatchQueue(label: "easemo.overlay-compositor")
-    private let ciContext = CIContext(options: [.useSoftwareRenderer: false])
+    private let ciContext = EasemoCIContext.shared
     private var renderContext: AVVideoCompositionRenderContext?
 
     func renderContextChanged(_ newRenderContext: AVVideoCompositionRenderContext) {
@@ -139,6 +139,8 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
            let cameraBuffer = request.sourceFrame(byTrackID: cameraTrackID) {
             let camTransform = instruction.cameraPreferredTransform ?? .identity
             var camera = Self.orientedCIImage(cvPixelBuffer: cameraBuffer, preferredTransform: camTransform)
+            camera = WebcamBackgroundBlur.applyIfEnabled(instruction.blurBackgroundBehindWebcam, base: camera)
+
             let cameraExtent = camera.extent
             if cameraExtent.width > 1, cameraExtent.height > 1 {
                 let scaleX = pipFrame.width / max(cameraExtent.width, 1)
@@ -257,6 +259,8 @@ final class OverlayInstruction: NSObject, AVVideoCompositionInstructionProtocol 
     let screenPreferredTransform: CGAffineTransform
     /// Transform for the camera decode buffers; `nil` when there is no camera track.
     let cameraPreferredTransform: CGAffineTransform?
+    /// When true, blur the **webcam** background (room behind you) via Vision person segmentation before compositing.
+    let blurBackgroundBehindWebcam: Bool
 
     let timeRange: CMTimeRange
     let enablePostProcessing: Bool = false
@@ -272,7 +276,8 @@ final class OverlayInstruction: NSObject, AVVideoCompositionInstructionProtocol 
          cameraFrame: CGRect,
          shape: OverlayShape,
          screenPreferredTransform: CGAffineTransform,
-         cameraPreferredTransform: CGAffineTransform?) {
+         cameraPreferredTransform: CGAffineTransform?,
+         blurBackgroundBehindWebcam: Bool) {
         self.timeRange = timeRange
         self.screenTrackID = screenTrackID
         self.persistentCameraCompositionID = persistentCameraCompositionID
@@ -282,6 +287,7 @@ final class OverlayInstruction: NSObject, AVVideoCompositionInstructionProtocol 
         self.shape = shape
         self.screenPreferredTransform = screenPreferredTransform
         self.cameraPreferredTransform = cameraPreferredTransform
+        self.blurBackgroundBehindWebcam = blurBackgroundBehindWebcam
         var ids: [NSValue] = [NSNumber(value: screenTrackID)]
         if let persistentCameraCompositionID {
             ids.append(NSNumber(value: persistentCameraCompositionID))

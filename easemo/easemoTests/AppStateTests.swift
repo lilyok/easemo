@@ -35,6 +35,11 @@ final class AppStateTests: XCTestCase {
                       "Microphone should be on by default to match the demo-recording use case.")
     }
 
+    func testRecordingConfigurationDefaultsBlurWebcamBackground() {
+        let configuration = RecordingConfiguration()
+        XCTAssertTrue(configuration.blurBackgroundBehindWebcam)
+    }
+
     func testMuteAudioDefaultsToFalseAndResetsOnBack() {
         let state = AppState()
         XCTAssertFalse(state.muteAudio)

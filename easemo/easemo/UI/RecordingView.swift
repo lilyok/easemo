@@ -31,6 +31,7 @@ struct RecordingView: View {
             if appState.configuration.includeCamera, !isPreviewReady {
                 try? await coordinator.cameraManager.startPreview()
                 isPreviewReady = true
+                syncLiveWebcamBlurPreview()
             }
         }
         .onChange(of: appState.configuration.includeCamera, perform: { newValue in
@@ -38,12 +39,24 @@ struct RecordingView: View {
                 if newValue {
                     try? await coordinator.cameraManager.startPreview()
                     isPreviewReady = true
+                    syncLiveWebcamBlurPreview()
                 } else {
                     coordinator.cameraManager.stopPreview()
                     isPreviewReady = false
                 }
             }
         })
+        .onAppear(perform: syncLiveWebcamBlurPreview)
+        .onChange(of: appState.configuration.blurBackgroundBehindWebcam, perform: { _ in syncLiveWebcamBlurPreview() })
+        .onChange(of: coordinator.isRecording, perform: { _ in syncLiveWebcamBlurPreview() })
+    }
+
+    private func syncLiveWebcamBlurPreview() {
+        guard appState.configuration.includeCamera else {
+            coordinator.cameraManager.setBlurBackgroundEnabled(false)
+            return
+        }
+        coordinator.cameraManager.setBlurBackgroundEnabled(appState.configuration.blurBackgroundBehindWebcam)
     }
 
     private var easemoBackground: some View {
@@ -180,6 +193,12 @@ struct RecordingView: View {
                 Divider()
                     .background(EasemoTheme.panelBorder)
 
+                labeledToggle(title: "Blur webcam background", isOn: $appState.configuration.blurBackgroundBehindWebcam)
+                    .disabled(coordinator.isRecording)
+                    .opacity(coordinator.isRecording ? 0.45 : 1)
+                Divider()
+                    .background(EasemoTheme.panelBorder)
+
                 VStack(alignment: .leading, spacing: 14) {
                     Text("Webcam")
                         .font(.system(size: 12, weight: .semibold))
@@ -271,16 +290,18 @@ struct RecordingView: View {
                 let canvas = proxy.size
                 let frame = appState.overlay.frame(in: canvas, cameraAspect: 16.0 / 9.0)
                 if appState.overlay.shape == .circle {
-                    CameraPreviewView(session: coordinator.cameraManager.session,
-                                      shape: appState.overlay.shape)
+                    AdaptiveCameraPreviewView(session: coordinator.cameraManager.session,
+                                              cameraManager: coordinator.cameraManager,
+                                              shape: appState.overlay.shape)
                         .frame(width: frame.width, height: frame.height)
                         .overlay(Circle().stroke(Color.white.opacity(0.35), lineWidth: 1.5))
                         .position(x: frame.midX, y: frame.midY)
                         .shadow(color: .black.opacity(0.45), radius: 16, y: 8)
                         .gesture(overlayDragGesture(in: canvas, frame: frame))
                 } else {
-                    CameraPreviewView(session: coordinator.cameraManager.session,
-                                      shape: appState.overlay.shape)
+                    AdaptiveCameraPreviewView(session: coordinator.cameraManager.session,
+                                              cameraManager: coordinator.cameraManager,
+                                              shape: appState.overlay.shape)
                         .frame(width: frame.width, height: frame.height)
                         .overlay(
                             RoundedRectangle(cornerRadius: EasemoTheme.radiusInput, style: .continuous)
