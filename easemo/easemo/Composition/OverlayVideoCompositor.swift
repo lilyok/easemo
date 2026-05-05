@@ -140,42 +140,53 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
             let camTransform = instruction.cameraPreferredTransform ?? .identity
             var camera = Self.orientedCIImage(cvPixelBuffer: cameraBuffer, preferredTransform: camTransform)
             let cameraExtent = camera.extent
-            let scaleX = pipFrame.width / max(cameraExtent.width, 1)
-            let scaleY = pipFrame.height / max(cameraExtent.height, 1)
+            if cameraExtent.width > 1, cameraExtent.height > 1 {
+                let scaleX = pipFrame.width / max(cameraExtent.width, 1)
+                let scaleY = pipFrame.height / max(cameraExtent.height, 1)
 
-            let flippedY = renderSize.height - pipFrame.maxY
-            camera = camera.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
-            camera = camera.transformed(by: CGAffineTransform(translationX: pipFrame.origin.x, y: flippedY))
+                let flippedY = renderSize.height - pipFrame.maxY
+                camera = camera.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
+                camera = camera.transformed(by: CGAffineTransform(translationX: pipFrame.origin.x, y: flippedY))
 
-            if pipShape == .circle {
-                let radius = min(pipFrame.width, pipFrame.height) / 2.0
-                let centerX = pipFrame.origin.x + pipFrame.width / 2.0
-                let centerY = flippedY + pipFrame.height / 2.0
-                let mask = CIFilter(name: "CIRadialGradient", parameters: [
-                    "inputCenter": CIVector(x: centerX, y: centerY),
-                    "inputRadius0": radius - 1,
-                    "inputRadius1": radius,
-                    "inputColor0": CIColor(red: 1, green: 1, blue: 1, alpha: 1),
-                    "inputColor1": CIColor(red: 0, green: 0, blue: 0, alpha: 0)
-                ])?.outputImage?.cropped(to: CGRect(origin: .zero, size: renderSize))
+                let fullCanvas = CGRect(origin: .zero, size: renderSize)
+                let clearBG = CIImage(color: CIColor.clear).cropped(to: fullCanvas)
 
-                if let mask = mask {
-                    camera = camera.applyingFilter("CIBlendWithMask", parameters: [
-                        kCIInputBackgroundImageKey: CIImage(color: CIColor.clear).cropped(to: CGRect(origin: .zero, size: renderSize)),
-                        kCIInputMaskImageKey: mask
-                    ])
+                if pipShape == .circle {
+                    let radius = min(pipFrame.width, pipFrame.height) / 2.0
+                    let centerX = pipFrame.origin.x + pipFrame.width / 2.0
+                    let centerY = flippedY + pipFrame.height / 2.0
+                    let mask = CIFilter(name: "CIRadialGradient", parameters: [
+                        "inputCenter": CIVector(x: centerX, y: centerY),
+                        "inputRadius0": radius - 1,
+                        "inputRadius1": radius,
+                        "inputColor0": CIColor(red: 1, green: 1, blue: 1, alpha: 1),
+                        "inputColor1": CIColor(red: 0, green: 0, blue: 0, alpha: 0)
+                    ])?.outputImage?.cropped(to: fullCanvas)
+
+                    if let mask = mask {
+                        camera = camera.applyingFilter("CIBlendWithMask", parameters: [
+                            kCIInputBackgroundImageKey: clearBG,
+                            kCIInputMaskImageKey: mask
+                        ])
+                    }
+                } else {
+                    // Rectangle: same mask blend path as circle; avoids brittle `cropped(to:)` on large PiP.
+                    let clipRect = CGRect(x: pipFrame.origin.x,
+                                          y: flippedY,
+                                          width: pipFrame.width,
+                                          height: pipFrame.height).intersection(fullCanvas)
+                    if clipRect.width > 1, clipRect.height > 1 {
+                        let whiteRect = CIImage(color: CIColor(red: 1, green: 1, blue: 1, alpha: 1)).cropped(to: clipRect)
+                        let rectMask = whiteRect.composited(over: clearBG).cropped(to: fullCanvas)
+                        camera = camera.applyingFilter("CIBlendWithMask", parameters: [
+                            kCIInputBackgroundImageKey: clearBG,
+                            kCIInputMaskImageKey: rectMask
+                        ])
+                    }
                 }
-            } else {
-                // Rectangle PiP: clip camera pixels to the overlay rect so the CI graph stays
-                // bounded when width/height changes (avoids black preview after resizing).
-                let clipRect = CGRect(x: pipFrame.origin.x,
-                                      y: flippedY,
-                                      width: pipFrame.width,
-                                      height: pipFrame.height)
-                camera = camera.cropped(to: clipRect)
-            }
 
-            output = camera.composited(over: output)
+                output = camera.composited(over: output)
+            }
         }
 
         // Final clamp: keep output strictly within the render buffer.
