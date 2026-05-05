@@ -2,19 +2,25 @@ import CoreImage
 import Vision
 
 /// Blurs the **webcam** image behind the subject using Vision person segmentation.
-/// Used during export composition; the screen recording is left untouched.
+/// Used during export composition and optional live preview; the screen recording is left untouched.
 enum WebcamBackgroundBlur {
 
     /// Returns `base` unchanged when `enabled` is false or segmentation fails.
     static func applyIfEnabled(_ enabled: Bool, base: CIImage) -> CIImage {
         guard enabled else { return base }
-        guard let blended = apply(base: base) else { return base }
+        guard let blended = apply(base: base, quality: .accurate) else { return base }
         return blended
     }
 
-    private static func apply(base: CIImage) -> CIImage? {
+    /// Lighter segmentation for real-time preview (throttled frames).
+    static func applyLiveIfEnabled(_ enabled: Bool, base: CIImage) -> CIImage? {
+        guard enabled else { return nil }
+        return apply(base: base, quality: .balanced)
+    }
+
+    private static func apply(base: CIImage, quality: VNGeneratePersonSegmentationRequest.QualityLevel) -> CIImage? {
         let request = VNGeneratePersonSegmentationRequest()
-        request.qualityLevel = .accurate
+        request.qualityLevel = quality
         request.outputPixelFormat = kCVPixelFormatType_OneComponent8
 
         let handler = VNImageRequestHandler(ciImage: base, options: [:])

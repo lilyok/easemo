@@ -11,6 +11,7 @@
 		A100000000000000000000A2 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000A2 /* AppState.swift */; };
 		A100000000000000000000A3 /* RecordingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000A3 /* RecordingManager.swift */; };
 		A100000000000000000000A4 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000A4 /* CameraManager.swift */; };
+		A100000000000000000000FC /* CameraLiveBackgroundBlurProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000FC /* CameraLiveBackgroundBlurProcessor.swift */; };
 		A100000000000000000000A5 /* CaptureSessionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000A5 /* CaptureSessionCoordinator.swift */; };
 		A100000000000000000000A6 /* SampleBufferWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000A6 /* SampleBufferWriter.swift */; };
 		A100000000000000000000D1 /* AudioRecordingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000D1 /* AudioRecordingManager.swift */; };
@@ -54,6 +55,7 @@
 		B100000000000000000000A2 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		B100000000000000000000A3 /* RecordingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingManager.swift; sourceTree = "<group>"; };
 		B100000000000000000000A4 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
+		B100000000000000000000FC /* CameraLiveBackgroundBlurProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraLiveBackgroundBlurProcessor.swift; sourceTree = "<group>"; };
 		B100000000000000000000A5 /* CaptureSessionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureSessionCoordinator.swift; sourceTree = "<group>"; };
 		B100000000000000000000A6 /* SampleBufferWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleBufferWriter.swift; sourceTree = "<group>"; };
 		B100000000000000000000D1 /* AudioRecordingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecordingManager.swift; sourceTree = "<group>"; };
@@ -144,6 +146,7 @@
 			children = (
 				B100000000000000000000A3 /* RecordingManager.swift */,
 				B100000000000000000000A4 /* CameraManager.swift */,
+				B100000000000000000000FC /* CameraLiveBackgroundBlurProcessor.swift */,
 				B100000000000000000000A5 /* CaptureSessionCoordinator.swift */,
 				B100000000000000000000A6 /* SampleBufferWriter.swift */,
 				B100000000000000000000D1 /* AudioRecordingManager.swift */,
@@ -336,6 +339,7 @@
 				A100000000000000000000A2 /* AppState.swift in Sources */,
 				A100000000000000000000A3 /* RecordingManager.swift in Sources */,
 				A100000000000000000000A4 /* CameraManager.swift in Sources */,
+				A100000000000000000000FC /* CameraLiveBackgroundBlurProcessor.swift in Sources */,
 				A100000000000000000000A5 /* CaptureSessionCoordinator.swift in Sources */,
 				A100000000000000000000A6 /* SampleBufferWriter.swift in Sources */,
 				A100000000000000000000D1 /* AudioRecordingManager.swift in Sources */,

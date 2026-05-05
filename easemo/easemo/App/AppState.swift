@@ -96,6 +96,8 @@ public final class AppState: ObservableObject {
                     self.recordingUIBridge.didStartRecording(
                         includeCamera: self.configuration.includeCamera,
                         cameraSession: self.coordinator.cameraManager.session,
+                        cameraManager: self.coordinator.cameraManager,
+                        blurWebcamBackground: self.configuration.blurBackgroundBehindWebcam,
                         overlay: self.overlay,
                         onOverlayChanged: { [weak self] updatedOverlay in
                             guard let self = self else { return }
@@ -203,6 +205,7 @@ private final class RecordingUIBridge: NSObject {
     private var onOverlayChanged: ((OverlayLayout) -> Void)?
     private var currentOverlay: OverlayLayout = .default
     private var cameraSession: AVCaptureSession?
+    private weak var cameraManager: CameraManager?
 
     func setStopAction(_ action: @escaping () -> Void) {
         stopAction = action
@@ -210,19 +213,27 @@ private final class RecordingUIBridge: NSObject {
 
     func didStartRecording(includeCamera: Bool,
                            cameraSession: AVCaptureSession,
+                           cameraManager: CameraManager,
+                           blurWebcamBackground: Bool,
                            overlay: OverlayLayout,
                            onOverlayChanged: @escaping (OverlayLayout) -> Void) {
         self.onOverlayChanged = onOverlayChanged
         self.currentOverlay = overlay
         self.cameraSession = cameraSession
+        self.cameraManager = cameraManager
+        cameraManager.setBlurBackgroundEnabled(blurWebcamBackground)
         NSApplication.shared.windows.first(where: \.isVisible)?.miniaturize(nil)
         installStatusItem()
         if includeCamera {
-            installFloatingPanel(session: cameraSession, overlay: overlay, shape: overlay.shape)
+            installFloatingPanel(session: cameraSession,
+                                 cameraManager: cameraManager,
+                                 overlay: overlay,
+                                 shape: overlay.shape)
         }
     }
 
     func didStopRecording() {
+        cameraManager?.setBlurBackgroundEnabled(false)
         removeStatusItem()
         removeFloatingPanel()
         if let window = NSApplication.shared.windows.first {
@@ -248,6 +259,7 @@ private final class RecordingUIBridge: NSObject {
     }
 
     private func installFloatingPanel(session: AVCaptureSession,
+                                      cameraManager: CameraManager,
                                       overlay: OverlayLayout,
                                       shape: OverlayShape) {
         guard floatingPanel == nil else { return }
@@ -276,6 +288,7 @@ private final class RecordingUIBridge: NSObject {
         panel.isMovableByWindowBackground = true
 
         let hud = FloatingRecorderHUD(session: session,
+                                      cameraManager: cameraManager,
                                       shape: shape,
                                       onScale: { [weak self] factor in
                                           self?.scaleOverlay(by: factor)
@@ -317,6 +330,7 @@ private final class RecordingUIBridge: NSObject {
         floatingPanel = nil
         onOverlayChanged = nil
         cameraSession = nil
+        cameraManager = nil
     }
 
     @objc
@@ -358,9 +372,12 @@ private final class RecordingUIBridge: NSObject {
     }
 
     private func refreshFloatingPanelAppearance() {
-        guard let panel = floatingPanel, let session = cameraSession else { return }
+        guard let panel = floatingPanel,
+              let session = cameraSession,
+              let cameraManager = cameraManager else { return }
         panel.contentView = NSHostingView(
             rootView: FloatingRecorderHUD(session: session,
+                                          cameraManager: cameraManager,
                                           shape: currentOverlay.shape,
                                           onScale: { [weak self] factor in
                                               self?.scaleOverlay(by: factor)
@@ -387,6 +404,7 @@ private final class RecordingUIBridge: NSObject {
 
 private struct FloatingRecorderHUD: View {
     let session: AVCaptureSession
+    @ObservedObject var cameraManager: CameraManager
     let shape: OverlayShape
     let onScale: (CGFloat) -> Void
     let onSetShape: (OverlayShape) -> Void
@@ -399,10 +417,14 @@ private struct FloatingRecorderHUD: View {
     var body: some View {
         Group {
             if shape == .circle {
-                CameraPreviewView(session: session, shape: shape)
+                AdaptiveCameraPreviewView(session: session,
+                                          cameraManager: cameraManager,
+                                          shape: shape)
                     .contentShape(Circle())
             } else {
-                CameraPreviewView(session: session, shape: shape)
+                AdaptiveCameraPreviewView(session: session,
+                                          cameraManager: cameraManager,
+                                          shape: shape)
                     .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
         }

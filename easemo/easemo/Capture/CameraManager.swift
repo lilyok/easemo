@@ -1,6 +1,7 @@
 import AVFoundation
 import Combine
 import CoreMedia
+import CoreVideo
 import Foundation
 
 /// `CameraManager` owns an `AVCaptureSession` configured with the default
@@ -38,6 +39,10 @@ public final class CameraManager: NSObject, ObservableObject {
     @Published public private(set) var state: State = .idle
     @Published public private(set) var lastError: CameraError?
     @Published public private(set) var resolution: CGSize = .zero
+    /// When true, live preview (recording screen + floating HUD) runs Vision blur on throttled frames.
+    @Published public private(set) var blurBackgroundEnabled = false
+    /// Latest blurred frame for live preview; nil until the first Vision pass completes.
+    @Published public private(set) var liveBlurPreviewPixelBuffer: CVPixelBuffer?
 
     /// Underlying capture session for SwiftUI preview.
     public let session = AVCaptureSession()
@@ -51,6 +56,7 @@ public final class CameraManager: NSObject, ObservableObject {
     /// `sampleHandlerRef` is a thread-safe holder so the capture queue can
     /// read it without bouncing to the main actor for every frame.
     nonisolated private let sampleHandlerRef = LockedRef<CameraSampleHandler>()
+    nonisolated private let liveBlurProcessorRef = LockedRef<CameraLiveBackgroundBlurProcessor>()
     private(set) public var startTime: CMTime = .zero
     private(set) public var lastRecordingURL: URL?
     private var activeRecordingURL: URL?
@@ -105,9 +111,25 @@ public final class CameraManager: NSObject, ObservableObject {
     }
 
     public func stopPreview() {
+        setBlurBackgroundEnabled(false)
         guard session.isRunning else { return }
         session.stopRunning()
         if state == .preview { state = .idle }
+    }
+
+    /// Enables or disables Vision-based background blur for **live** preview only (does not change the recorded camera file).
+    public func setBlurBackgroundEnabled(_ enabled: Bool) {
+        blurBackgroundEnabled = enabled
+        if !enabled {
+            liveBlurProcessorRef.value = nil
+            liveBlurPreviewPixelBuffer = nil
+        } else if liveBlurProcessorRef.value == nil {
+            liveBlurProcessorRef.value = CameraLiveBackgroundBlurProcessor { [weak self] buffer in
+                Task { @MainActor in
+                    self?.liveBlurPreviewPixelBuffer = buffer
+                }
+            }
+        }
     }
 
     // MARK: Recording lifecycle
@@ -229,6 +251,10 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
                                           didOutput sampleBuffer: CMSampleBuffer,
                                           from connection: AVCaptureConnection) {
         sampleHandlerRef.value?.handle(sampleBuffer)
+
+        if let buffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
+            liveBlurProcessorRef.value?.enqueuePixelBufferIfNeeded(buffer)
+        }
     }
 }
 
