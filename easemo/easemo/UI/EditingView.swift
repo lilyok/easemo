@@ -3,6 +3,14 @@ import AVFoundation
 import AVKit
 import SwiftUI
 
+/// Shared by the speed header and tick labels under the slider.
+fileprivate func playbackSpeedDisplayLabel(_ value: Double) -> String {
+    if value.truncatingRemainder(dividingBy: 1) == 0 {
+        return String(format: "%.0f×", value)
+    }
+    return String(format: "%.1f×", value)
+}
+
 /// Post-recording editing screen: trim, speed, preview, export.
 struct EditingView: View {
     @EnvironmentObject private var appState: AppState
@@ -162,7 +170,7 @@ struct EditingView: View {
             trimSummaryRow
 
             VStack(alignment: .leading, spacing: 10) {
-                Text("Speed: \(formatSpeedLabel(appState.playbackSpeed))")
+                Text("Speed: \(playbackSpeedDisplayLabel(appState.playbackSpeed))")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(EasemoTheme.textPrimary)
 
@@ -222,13 +230,6 @@ struct EditingView: View {
                 appState.playbackSpeed = min(max(stepped, 0.5), 2.0)
             }
         )
-    }
-
-    private func formatSpeedLabel(_ value: Double) -> String {
-        if value.truncatingRemainder(dividingBy: 1) == 0 {
-            return String(format: "%.0f×", value)
-        }
-        return String(format: "%.1f×", value)
     }
 
     private var trimStartBinding: Binding<Double> {
@@ -466,7 +467,7 @@ private struct SpeedSnapSliderRow: View {
                         .allowsHitTesting(false)
 
                     let selected = abs(speed - mark) < 0.01
-                    Text(Self.speedTickLabel(mark))
+                    Text(playbackSpeedDisplayLabel(mark))
                         .font(.system(size: 12, weight: .regular).monospacedDigit())
                         .foregroundStyle(selected ? EasemoTheme.accentPurple : EasemoTheme.textSecondary)
                         .position(x: x, y: labelY)
@@ -475,13 +476,6 @@ private struct SpeedSnapSliderRow: View {
             }
         }
         .frame(height: 48)
-    }
-
-    private static func speedTickLabel(_ value: Double) -> String {
-        if value.truncatingRemainder(dividingBy: 1) == 0 {
-            return String(format: "%.0f×", value)
-        }
-        return String(format: "%.1f×", value)
     }
 }
 

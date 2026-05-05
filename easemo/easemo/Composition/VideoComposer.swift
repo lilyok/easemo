@@ -255,7 +255,8 @@ public final class VideoComposer {
         }
 
         if Self.overlayLayoutIsConstantAcrossMotion(keyframes: motionKeyframes) {
-            return [makeSlice(timeRange: CMTimeRange(start: .zero, duration: scaledDuration), layout: fallbackLayout)]
+            let constantLayout = motionKeyframes.first!.layout
+            return [makeSlice(timeRange: CMTimeRange(start: .zero, duration: scaledDuration), layout: constantLayout)]
         }
 
         let timeline = OverlayMotionTimeline(
