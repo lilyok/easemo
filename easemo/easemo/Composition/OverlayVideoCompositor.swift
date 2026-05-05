@@ -105,7 +105,10 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
         if let screenBuffer = request.sourceFrame(byTrackID: instruction.screenTrackID) {
             let screenImage = CIImage(cvPixelBuffer: screenBuffer)
             let screenScaled = scaledToFit(screenImage, in: renderSize)
-            output = screenScaled.composited(over: output)
+            // Pixel buffers often use a non-zero origin; `scaledToFit` preserves it. Cropping to the
+            // output rect keeps the graph finite and avoids black frames after PiP updates.
+            let screenClipped = screenScaled.cropped(to: renderRect)
+            output = screenClipped.composited(over: output)
         }
 
         let pipFrame: CGRect
@@ -158,14 +161,20 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
                         kCIInputMaskImageKey: mask
                     ])
                 }
+            } else {
+                // Rectangle PiP: clip camera pixels to the overlay rect so the CI graph stays
+                // bounded when width/height changes (avoids black preview after resizing).
+                let clipRect = CGRect(x: pipFrame.origin.x,
+                                      y: flippedY,
+                                      width: pipFrame.width,
+                                      height: pipFrame.height)
+                camera = camera.cropped(to: clipRect)
             }
 
             output = camera.composited(over: output)
         }
 
-        // Rectangle PiP skips `CIBlendWithMask` (circle-only). Without an explicit crop, the
-        // composited graph can carry an **infinite** CI extent; `ciContext.render` then produces
-        // a black frame. Always clamp to the render rect before writing pixels.
+        // Final clamp: keep output strictly within the render buffer.
         output = output.cropped(to: renderRect)
 
         ciContext.render(output, to: destination,

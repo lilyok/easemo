@@ -166,20 +166,7 @@ struct EditingView: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(EasemoTheme.textPrimary)
 
-                let speedMarks: [Double] = [0.5, 1.0, 1.5, 2.0]
-                VStack(alignment: .leading, spacing: 6) {
-                    Slider(value: snappedSpeedBinding, in: 0.5...2.0, step: 0.5)
-                        .tint(EasemoTheme.accentPurple)
-                    HStack(spacing: 0) {
-                        ForEach(speedMarks, id: \.self) { mark in
-                            let selected = abs(appState.playbackSpeed - mark) < 0.01
-                            Text(formatSpeedLabel(mark))
-                                .font(.system(size: 12, weight: .regular).monospacedDigit())
-                                .foregroundStyle(selected ? EasemoTheme.accentPurple : EasemoTheme.textSecondary)
-                                .frame(maxWidth: .infinity)
-                        }
-                    }
-                }
+                SpeedSnapSliderRow(speed: snappedSpeedBinding)
             }
 
             Divider()
@@ -447,6 +434,54 @@ struct EditingView: View {
         player.seek(to: CMTime(seconds: out, preferredTimescale: 600),
                     toleranceBefore: .zero,
                     toleranceAfter: .zero)
+    }
+}
+
+// MARK: - Speed control (aligned ticks + labels)
+
+private struct SpeedSnapSliderRow: View {
+    @Binding var speed: Double
+    private let marks: [Double] = [0.5, 1.0, 1.5, 2.0]
+    /// Matches AppKit slider horizontal padding so thumb centers line up with labels.
+    private let sliderHorizontalInset: CGFloat = 10
+
+    var body: some View {
+        GeometryReader { geo in
+            let totalW = max(geo.size.width, 1)
+            let trackW = max(totalW - sliderHorizontalInset * 2, 1)
+            let labelY: CGFloat = 30
+
+            ZStack(alignment: .topLeading) {
+                Slider(value: $speed, in: 0.5...2.0, step: 0.5)
+                    .tint(EasemoTheme.accentPurple)
+                    .padding(.horizontal, sliderHorizontalInset)
+
+                ForEach(marks, id: \.self) { mark in
+                    let u = (mark - 0.5) / 1.5
+                    let x = sliderHorizontalInset + CGFloat(u) * trackW
+                    Capsule()
+                        .fill(EasemoTheme.textMuted.opacity(0.45))
+                        .frame(width: 2, height: 6)
+                        .position(x: x, y: 10)
+                        .allowsHitTesting(false)
+
+                    let selected = abs(speed - mark) < 0.01
+                    Text(Self.speedTickLabel(mark))
+                        .font(.system(size: 12, weight: .regular).monospacedDigit())
+                        .foregroundStyle(selected ? EasemoTheme.accentPurple : EasemoTheme.textSecondary)
+                        .position(x: x, y: labelY)
+                        .allowsHitTesting(false)
+                }
+            }
+        }
+        .frame(height: 48)
+    }
+
+    private static func speedTickLabel(_ value: Double) -> String {
+        if value.truncatingRemainder(dividingBy: 1) == 0 {
+            return String(format: "%.0f×", value)
+        }
+        return String(format: "%.1f×", value)
     }
 }
 
