@@ -103,7 +103,10 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
 
         var output: CIImage = CIImage(color: CIColor.black).cropped(to: renderRect)
         if let screenBuffer = request.sourceFrame(byTrackID: instruction.screenTrackID) {
-            let screenImage = CIImage(cvPixelBuffer: screenBuffer)
+            let screenImage = Self.orientedCIImage(
+                cvPixelBuffer: screenBuffer,
+                preferredTransform: instruction.screenPreferredTransform
+            )
             let screenScaled = scaledToFit(screenImage, in: renderSize)
             // Pixel buffers often use a non-zero origin; `scaledToFit` preserves it. Cropping to the
             // output rect keeps the graph finite and avoids black frames after PiP updates.
@@ -134,7 +137,8 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
         // Foreground = camera track (optional).
         if let cameraTrackID = overlayCameraID,
            let cameraBuffer = request.sourceFrame(byTrackID: cameraTrackID) {
-            var camera = CIImage(cvPixelBuffer: cameraBuffer)
+            let camTransform = instruction.cameraPreferredTransform ?? .identity
+            var camera = Self.orientedCIImage(cvPixelBuffer: cameraBuffer, preferredTransform: camTransform)
             let cameraExtent = camera.extent
             let scaleX = pipFrame.width / max(cameraExtent.width, 1)
             let scaleY = pipFrame.height / max(cameraExtent.height, 1)
@@ -183,6 +187,16 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
         return destination
     }
 
+    /// Pixel buffers from `AVAsynchronousVideoCompositionRequest` are not pre-rotated; apply each
+    /// track's `preferredTransform` so CI extents match `videoComposition.renderSize` (critical for
+    /// webcam tracks that are often stored rotated relative to display orientation).
+    private static func orientedCIImage(cvPixelBuffer buffer: CVPixelBuffer,
+                                        preferredTransform: CGAffineTransform) -> CIImage {
+        let base = CIImage(cvPixelBuffer: buffer)
+        if preferredTransform.isIdentity { return base }
+        return base.transformed(by: preferredTransform)
+    }
+
     private func scaledToFit(_ image: CIImage, in size: CGSize) -> CIImage {
         let extent = image.extent
         guard extent.width > 0, extent.height > 0 else { return image }
@@ -211,6 +225,10 @@ final class OverlayInstruction: NSObject, AVVideoCompositionInstructionProtocol 
     /// Static PiP geometry when **`motionTimeline == nil`**.
     let cameraFrame: CGRect
     let shape: OverlayShape
+    /// Must match the composed screen track's transform when converting decode buffers to CI space.
+    let screenPreferredTransform: CGAffineTransform
+    /// Transform for the camera decode buffers; `nil` when there is no camera track.
+    let cameraPreferredTransform: CGAffineTransform?
 
     let timeRange: CMTimeRange
     let enablePostProcessing: Bool = false
@@ -224,7 +242,9 @@ final class OverlayInstruction: NSObject, AVVideoCompositionInstructionProtocol 
          staticOverlayCameraCompositionID: CMPersistentTrackID?,
          motionTimeline: OverlayMotionTimeline?,
          cameraFrame: CGRect,
-         shape: OverlayShape) {
+         shape: OverlayShape,
+         screenPreferredTransform: CGAffineTransform,
+         cameraPreferredTransform: CGAffineTransform?) {
         self.timeRange = timeRange
         self.screenTrackID = screenTrackID
         self.persistentCameraCompositionID = persistentCameraCompositionID
@@ -232,6 +252,8 @@ final class OverlayInstruction: NSObject, AVVideoCompositionInstructionProtocol 
         self.motionTimeline = motionTimeline
         self.cameraFrame = cameraFrame
         self.shape = shape
+        self.screenPreferredTransform = screenPreferredTransform
+        self.cameraPreferredTransform = cameraPreferredTransform
         var ids: [NSValue] = [NSNumber(value: screenTrackID)]
         if let persistentCameraCompositionID {
             ids.append(NSNumber(value: persistentCameraCompositionID))
