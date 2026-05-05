@@ -24,6 +24,8 @@ struct EditingView: View {
     /// Output timeline length after trim + speed (matches export).
     @State private var composedOutputDurationSeconds: Double = 0.1
     @State private var previewRebuildTask: Task<Void, Never>?
+    /// Monotonic id so only the newest `compose` completion updates `AVPlayer` (older async work can finish out of order when overlay/size changes rapidly).
+    @State private var previewRebuildToken: UInt64 = 0
     @State private var lastExportedURL: URL?
 
     var body: some View {
@@ -48,7 +50,9 @@ struct EditingView: View {
             appState.playbackSpeed = (appState.playbackSpeed * 2).rounded() / 2
             appState.playbackSpeed = min(max(appState.playbackSpeed, 0.5), 2.0)
             installTimeObserver()
-            Task { await rebuildComposedPreview(immediatePlayback: true) }
+            previewRebuildToken &+= 1
+            let token = previewRebuildToken
+            Task { await rebuildComposedPreview(immediatePlayback: true, token: token) }
         }
         .onDisappear {
             previewRebuildTask?.cancel()
@@ -363,14 +367,16 @@ struct EditingView: View {
     /// so screen + frontal camera overlay match the exported MP4.
     private func scheduleComposedPreviewRebuild(immediatePlayback: Bool) {
         previewRebuildTask?.cancel()
+        previewRebuildToken &+= 1
+        let token = previewRebuildToken
         previewRebuildTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 120_000_000)
             guard !Task.isCancelled else { return }
-            await rebuildComposedPreview(immediatePlayback: immediatePlayback)
+            await rebuildComposedPreview(immediatePlayback: immediatePlayback, token: token)
         }
     }
 
-    private func rebuildComposedPreview(immediatePlayback: Bool) async {
+    private func rebuildComposedPreview(immediatePlayback: Bool, token: UInt64) async {
         guard FileManager.default.fileExists(atPath: recording.screenURL.path) else { return }
         let layout = appState.overlay
         do {
@@ -380,6 +386,8 @@ struct EditingView: View {
                                                              trimStart: appState.trimStartSeconds,
                                                              trimEnd: appState.trimEndSeconds,
                                                              muteAudio: appState.muteAudio)
+            guard token == previewRebuildToken else { return }
+
             let item = AVPlayerItem(asset: bundle.composition)
             item.videoComposition = bundle.videoComposition
             item.audioTimePitchAlgorithm = .spectral
@@ -398,6 +406,7 @@ struct EditingView: View {
                 player.play()
             }
         } catch {
+            guard token == previewRebuildToken else { return }
             player.replaceCurrentItem(with: AVPlayerItem(url: recording.screenURL))
             composedOutputDurationSeconds = recording.duration.seconds
         }

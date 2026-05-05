@@ -103,7 +103,10 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
 
         var output: CIImage = CIImage(color: CIColor.black).cropped(to: renderRect)
         if let screenBuffer = request.sourceFrame(byTrackID: instruction.screenTrackID) {
-            let screenImage = CIImage(cvPixelBuffer: screenBuffer)
+            let screenImage = Self.orientedCIImage(
+                cvPixelBuffer: screenBuffer,
+                preferredTransform: instruction.screenPreferredTransform
+            )
             let screenScaled = scaledToFit(screenImage, in: renderSize)
             // Pixel buffers often use a non-zero origin; `scaledToFit` preserves it. Cropping to the
             // output rect keeps the graph finite and avoids black frames after PiP updates.
@@ -134,44 +137,63 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
         // Foreground = camera track (optional).
         if let cameraTrackID = overlayCameraID,
            let cameraBuffer = request.sourceFrame(byTrackID: cameraTrackID) {
-            var camera = CIImage(cvPixelBuffer: cameraBuffer)
+            let camTransform = instruction.cameraPreferredTransform ?? .identity
+            var camera = Self.orientedCIImage(cvPixelBuffer: cameraBuffer, preferredTransform: camTransform)
             let cameraExtent = camera.extent
-            let scaleX = pipFrame.width / max(cameraExtent.width, 1)
-            let scaleY = pipFrame.height / max(cameraExtent.height, 1)
+            if cameraExtent.width > 1, cameraExtent.height > 1 {
+                let scaleX = pipFrame.width / max(cameraExtent.width, 1)
+                let scaleY = pipFrame.height / max(cameraExtent.height, 1)
 
-            let flippedY = renderSize.height - pipFrame.maxY
-            camera = camera.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
-            camera = camera.transformed(by: CGAffineTransform(translationX: pipFrame.origin.x, y: flippedY))
+                let flippedY = renderSize.height - pipFrame.maxY
+                camera = camera.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
+                camera = camera.transformed(by: CGAffineTransform(translationX: pipFrame.origin.x, y: flippedY))
 
-            if pipShape == .circle {
-                let radius = min(pipFrame.width, pipFrame.height) / 2.0
-                let centerX = pipFrame.origin.x + pipFrame.width / 2.0
-                let centerY = flippedY + pipFrame.height / 2.0
-                let mask = CIFilter(name: "CIRadialGradient", parameters: [
-                    "inputCenter": CIVector(x: centerX, y: centerY),
-                    "inputRadius0": radius - 1,
-                    "inputRadius1": radius,
-                    "inputColor0": CIColor(red: 1, green: 1, blue: 1, alpha: 1),
-                    "inputColor1": CIColor(red: 0, green: 0, blue: 0, alpha: 0)
-                ])?.outputImage?.cropped(to: CGRect(origin: .zero, size: renderSize))
+                let fullCanvas = CGRect(origin: .zero, size: renderSize)
+                let clearBG = CIImage(color: CIColor.clear).cropped(to: fullCanvas)
 
-                if let mask = mask {
-                    camera = camera.applyingFilter("CIBlendWithMask", parameters: [
-                        kCIInputBackgroundImageKey: CIImage(color: CIColor.clear).cropped(to: CGRect(origin: .zero, size: renderSize)),
-                        kCIInputMaskImageKey: mask
-                    ])
+                if pipShape == .circle {
+                    let radius = min(pipFrame.width, pipFrame.height) / 2.0
+                    let centerX = pipFrame.origin.x + pipFrame.width / 2.0
+                    let centerY = flippedY + pipFrame.height / 2.0
+                    let radialMask = CIFilter(name: "CIRadialGradient", parameters: [
+                        "inputCenter": CIVector(x: centerX, y: centerY),
+                        "inputRadius0": radius - 1,
+                        "inputRadius1": radius,
+                        "inputColor0": CIColor(red: 1, green: 1, blue: 1, alpha: 1),
+                        "inputColor1": CIColor(red: 0, green: 0, blue: 0, alpha: 0)
+                    ])?.outputImage?.cropped(to: fullCanvas)
+
+                    let rectClip = CGRect(x: pipFrame.origin.x,
+                                          y: flippedY,
+                                          width: pipFrame.width,
+                                          height: pipFrame.height).intersection(fullCanvas)
+                    let maskImage = radialMask ?? Self.rectangularAlphaMask(fullCanvas: fullCanvas,
+                                                                            clipRect: rectClip,
+                                                                            clearBackground: clearBG)
+                    if let maskImage {
+                        camera = camera.applyingFilter("CIBlendWithMask", parameters: [
+                            kCIInputBackgroundImageKey: clearBG,
+                            kCIInputMaskImageKey: maskImage
+                        ])
+                    }
+                } else {
+                    // Rectangle: same mask blend path as circle; avoids brittle `cropped(to:)` on large PiP.
+                    let clipRect = CGRect(x: pipFrame.origin.x,
+                                          y: flippedY,
+                                          width: pipFrame.width,
+                                          height: pipFrame.height).intersection(fullCanvas)
+                    if let rectMask = Self.rectangularAlphaMask(fullCanvas: fullCanvas,
+                                                                clipRect: clipRect,
+                                                                clearBackground: clearBG) {
+                        camera = camera.applyingFilter("CIBlendWithMask", parameters: [
+                            kCIInputBackgroundImageKey: clearBG,
+                            kCIInputMaskImageKey: rectMask
+                        ])
+                    }
                 }
-            } else {
-                // Rectangle PiP: clip camera pixels to the overlay rect so the CI graph stays
-                // bounded when width/height changes (avoids black preview after resizing).
-                let clipRect = CGRect(x: pipFrame.origin.x,
-                                      y: flippedY,
-                                      width: pipFrame.width,
-                                      height: pipFrame.height)
-                camera = camera.cropped(to: clipRect)
-            }
 
-            output = camera.composited(over: output)
+                output = camera.composited(over: output)
+            }
         }
 
         // Final clamp: keep output strictly within the render buffer.
@@ -181,6 +203,26 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
                          bounds: CGRect(origin: .zero, size: renderSize),
                          colorSpace: CGColorSpaceCreateDeviceRGB())
         return destination
+    }
+
+    /// Pixel buffers from `AVAsynchronousVideoCompositionRequest` are not pre-rotated; apply each
+    /// track's `preferredTransform` so CI extents match `videoComposition.renderSize` (critical for
+    /// webcam tracks that are often stored rotated relative to display orientation).
+    private static func orientedCIImage(cvPixelBuffer buffer: CVPixelBuffer,
+                                        preferredTransform: CGAffineTransform) -> CIImage {
+        let base = CIImage(cvPixelBuffer: buffer)
+        if preferredTransform.isIdentity { return base }
+        return base.transformed(by: preferredTransform)
+    }
+
+    /// Hard-edged alpha mask for PiP rectangle clipping (shared by rectangle PiP and circle fallback).
+    private static func rectangularAlphaMask(fullCanvas: CGRect,
+                                             clipRect: CGRect,
+                                             clearBackground clearBG: CIImage) -> CIImage? {
+        let clip = clipRect.intersection(fullCanvas)
+        guard clip.width > 1, clip.height > 1 else { return nil }
+        let whiteRect = CIImage(color: CIColor(red: 1, green: 1, blue: 1, alpha: 1)).cropped(to: clip)
+        return whiteRect.composited(over: clearBG).cropped(to: fullCanvas)
     }
 
     private func scaledToFit(_ image: CIImage, in size: CGSize) -> CIImage {
@@ -211,6 +253,10 @@ final class OverlayInstruction: NSObject, AVVideoCompositionInstructionProtocol 
     /// Static PiP geometry when **`motionTimeline == nil`**.
     let cameraFrame: CGRect
     let shape: OverlayShape
+    /// Must match the composed screen track's transform when converting decode buffers to CI space.
+    let screenPreferredTransform: CGAffineTransform
+    /// Transform for the camera decode buffers; `nil` when there is no camera track.
+    let cameraPreferredTransform: CGAffineTransform?
 
     let timeRange: CMTimeRange
     let enablePostProcessing: Bool = false
@@ -224,7 +270,9 @@ final class OverlayInstruction: NSObject, AVVideoCompositionInstructionProtocol 
          staticOverlayCameraCompositionID: CMPersistentTrackID?,
          motionTimeline: OverlayMotionTimeline?,
          cameraFrame: CGRect,
-         shape: OverlayShape) {
+         shape: OverlayShape,
+         screenPreferredTransform: CGAffineTransform,
+         cameraPreferredTransform: CGAffineTransform?) {
         self.timeRange = timeRange
         self.screenTrackID = screenTrackID
         self.persistentCameraCompositionID = persistentCameraCompositionID
@@ -232,6 +280,8 @@ final class OverlayInstruction: NSObject, AVVideoCompositionInstructionProtocol 
         self.motionTimeline = motionTimeline
         self.cameraFrame = cameraFrame
         self.shape = shape
+        self.screenPreferredTransform = screenPreferredTransform
+        self.cameraPreferredTransform = cameraPreferredTransform
         var ids: [NSValue] = [NSNumber(value: screenTrackID)]
         if let persistentCameraCompositionID {
             ids.append(NSNumber(value: persistentCameraCompositionID))

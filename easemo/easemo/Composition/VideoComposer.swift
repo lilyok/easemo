@@ -101,6 +101,7 @@ public final class VideoComposer {
         let screenNaturalSize = try await screenVideoTrack.load(.naturalSize)
         let screenTransform = try await screenVideoTrack.load(.preferredTransform)
         composedScreen.preferredTransform = screenTransform
+        let screenPreferredTransform = screenTransform
 
         let motionKeyframes = result.overlayMotion.sorted { $0.timeSeconds < $1.timeSeconds }
         let overlayUsesMotion = !motionKeyframes.isEmpty
@@ -115,6 +116,7 @@ public final class VideoComposer {
         // ----- Optional camera track -----
         var composedCamera: AVMutableCompositionTrack?
         var cameraAspect: CGFloat = 16.0/9.0
+        var cameraPreferredTransform: CGAffineTransform?
         if shouldInsertCameraTrack, let cameraURL = result.cameraURL {
             let cameraAsset = AVURLAsset(url: cameraURL)
             if try await loadable(cameraAsset),
@@ -131,6 +133,7 @@ public final class VideoComposer {
                     try camTrack?.insertTimeRange(cameraRange, of: cameraVideoTrack, at: .zero)
                     composedCamera = camTrack
                     camTrack?.preferredTransform = cameraTransform
+                    cameraPreferredTransform = cameraTransform
                 }
 
                 let cameraNatural = try await cameraVideoTrack.load(.naturalSize)
@@ -188,7 +191,9 @@ public final class VideoComposer {
             cameraAspect: cameraAspect,
             trimStart: clampedStart,
             playbackSpeed: clampedSpeed,
-            scaledDuration: scaledDuration
+            scaledDuration: scaledDuration,
+            screenPreferredTransform: screenPreferredTransform,
+            cameraPreferredTransform: cameraPreferredTransform
         )
         videoComposition.instructions = instructions
 
@@ -226,7 +231,9 @@ public final class VideoComposer {
                                           cameraAspect: CGFloat,
                                           trimStart: Double,
                                           playbackSpeed: Double,
-                                          scaledDuration: CMTime) -> [OverlayInstruction] {
+                                          scaledDuration: CMTime,
+                                          screenPreferredTransform: CGAffineTransform,
+                                          cameraPreferredTransform: CGAffineTransform?) -> [OverlayInstruction] {
         let cameraPersistentID = composedCamera?.trackID
 
         func makeSlice(timeRange: CMTimeRange, layout: OverlayLayout) -> OverlayInstruction {
@@ -237,7 +244,9 @@ public final class VideoComposer {
                 staticOverlayCameraCompositionID: layout.isVisible ? cameraPersistentID : nil,
                 motionTimeline: nil,
                 cameraFrame: layout.frame(in: renderSize, cameraAspect: cameraAspect),
-                shape: layout.shape
+                shape: layout.shape,
+                screenPreferredTransform: screenPreferredTransform,
+                cameraPreferredTransform: cameraPreferredTransform
             )
         }
 
@@ -275,7 +284,9 @@ public final class VideoComposer {
                 staticOverlayCameraCompositionID: nil,
                 motionTimeline: timeline,
                 cameraFrame: .zero,
-                shape: .rectangle
+                shape: .rectangle,
+                screenPreferredTransform: screenPreferredTransform,
+                cameraPreferredTransform: cameraPreferredTransform
             )
         ]
     }
