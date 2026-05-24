@@ -255,8 +255,8 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
                                         watermark.fontSize * scale,
                                         nil)
         let attributes: [NSAttributedString.Key: Any] = [
-            kCTFontAttributeName as NSAttributedString.Key: font,
-            kCTForegroundColorAttributeName as NSAttributedString.Key: CGColor(red: 1, green: 1, blue: 1, alpha: alpha)
+            NSAttributedString.Key(kCTFontAttributeName as String): font,
+            NSAttributedString.Key(kCTForegroundColorAttributeName as String): CGColor(red: 1, green: 1, blue: 1, alpha: alpha)
         ]
         let attributedText = NSAttributedString(string: watermark.text, attributes: attributes)
         let line = CTLineCreateWithAttributedString(attributedText)
