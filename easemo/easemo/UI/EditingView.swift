@@ -78,6 +78,9 @@ struct EditingView: View {
         .onChange(of: appState.muteAudio, perform: { _ in
             scheduleComposedPreviewRebuild(immediatePlayback: true)
         })
+        .onChange(of: appState.hasLifetimeAccess, perform: { _ in
+            scheduleComposedPreviewRebuild(immediatePlayback: true)
+        })
     }
 
     private var easemoEditingBackground: some View {
@@ -207,6 +210,25 @@ struct EditingView: View {
                 }
                 Spacer(minLength: 0)
             }
+
+            Divider()
+                .background(EasemoTheme.panelBorder)
+
+            LifetimeAccessCard(
+                storeKitManager: appState.storeKitManager,
+                onPurchase: {
+                    Task {
+                        await appState.purchaseLifetimeAccess()
+                        scheduleComposedPreviewRebuild(immediatePlayback: true)
+                    }
+                },
+                onRestore: {
+                    Task {
+                        await appState.restorePurchases()
+                        scheduleComposedPreviewRebuild(immediatePlayback: true)
+                    }
+                }
+            )
         }
         .padding(20)
         .easemoPanelStyle()
@@ -385,7 +407,8 @@ struct EditingView: View {
                                                              speed: appState.playbackSpeed,
                                                              trimStart: appState.trimStartSeconds,
                                                              trimEnd: appState.trimEndSeconds,
-                                                             muteAudio: appState.muteAudio)
+                                                             muteAudio: appState.muteAudio,
+                                                             watermark: appState.exportWatermark)
             guard token == previewRebuildToken else { return }
 
             let item = AVPlayerItem(asset: bundle.composition)

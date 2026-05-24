@@ -45,6 +45,8 @@ public final class AppState: ObservableObject {
     @Published public var trimEndSeconds: Double = 0
     /// When true, the audio track is muted in the export and preview.
     @Published public var muteAudio: Bool = false
+    /// StoreKit entitlement for watermark-free exports and full app functionality.
+    @Published public private(set) var hasLifetimeAccess: Bool
 
     /// Status string shown in the UI (recording timer / export progress).
     @Published public var statusMessage: String = ""
@@ -55,6 +57,7 @@ public final class AppState: ObservableObject {
     public let coordinator: CaptureSessionCoordinator
     public let composer: VideoComposer
     public let exportManager: ExportManager
+    public let storeKitManager: StoreKitManager
     private let recordingUIBridge: RecordingUIBridge
 
     private var cancellables = Set<AnyCancellable>()
@@ -63,16 +66,20 @@ public final class AppState: ObservableObject {
     public convenience init() {
         self.init(coordinator: CaptureSessionCoordinator(),
                   composer: VideoComposer(),
-                  exportManager: ExportManager())
+                  exportManager: ExportManager(),
+                  storeKitManager: StoreKitManager())
     }
 
     @MainActor
     public init(coordinator: CaptureSessionCoordinator,
                 composer: VideoComposer = VideoComposer(),
-                exportManager: ExportManager) {
+                exportManager: ExportManager,
+                storeKitManager: StoreKitManager = StoreKitManager()) {
         self.coordinator = coordinator
         self.composer = composer
         self.exportManager = exportManager
+        self.storeKitManager = storeKitManager
+        self.hasLifetimeAccess = storeKitManager.hasLifetimeAccess
         self.recordingUIBridge = RecordingUIBridge()
 
         recordingUIBridge.setStopAction { [weak self] in
@@ -116,6 +123,13 @@ public final class AppState: ObservableObject {
                 if case .exporting = self.exportManager.state {
                     self.statusMessage = String(format: "Exporting… %d%%", Int(progress * 100))
                 }
+            }
+            .store(in: &cancellables)
+
+        storeKitManager.$hasLifetimeAccess
+            .removeDuplicates()
+            .sink { [weak self] hasLifetimeAccess in
+                self?.hasLifetimeAccess = hasLifetimeAccess
             }
             .store(in: &cancellables)
     }
@@ -162,7 +176,8 @@ public final class AppState: ObservableObject {
                                                     speed: playbackSpeed,
                                                     trimStart: trimStartSeconds,
                                                     trimEnd: trimEndSeconds,
-                                                    muteAudio: muteAudio)
+                                                    muteAudio: muteAudio,
+                                                    watermark: exportWatermark)
             statusMessage = "Exporting…"
             _ = try await exportManager.export(bundle: bundle, to: destination)
             // Success UI is handled on the editing screen ("Video exported" + Reveal in Finder).
@@ -170,6 +185,24 @@ public final class AppState: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
             statusMessage = ""
+        }
+    }
+
+    public var exportWatermark: ExportWatermark? {
+        hasLifetimeAccess ? nil : .easemo
+    }
+
+    public func purchaseLifetimeAccess() async {
+        await storeKitManager.purchaseLifetimeAccess()
+        if let message = storeKitManager.storeErrorMessage {
+            errorMessage = message
+        }
+    }
+
+    public func restorePurchases() async {
+        await storeKitManager.restorePurchases()
+        if let message = storeKitManager.storeErrorMessage {
+            errorMessage = message
         }
     }
 
