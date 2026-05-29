@@ -2,6 +2,14 @@ import AVFoundation
 import Combine
 import Foundation
 
+private final class ExportSessionBox: @unchecked Sendable {
+    let session: AVAssetExportSession
+
+    init(_ session: AVAssetExportSession) {
+        self.session = session
+    }
+}
+
 /// Errors thrown by `ExportManager`. Modelled as a single `LocalizedError`
 /// enum so call sites and tests can pattern-match on the failure mode
 /// (`if case .alreadyRunning ...`) instead of reading magic NSError codes.
@@ -122,17 +130,19 @@ public final class ExportManager: ObservableObject {
         // `await session.export()` overload, which currently flags
         // non-Sendable warnings on `AVAssetExportSession` properties.
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            let sessionBox = ExportSessionBox(session)
             session.exportAsynchronously {
-                switch session.status {
+                let completedSession = sessionBox.session
+                switch completedSession.status {
                 case .completed:
                     continuation.resume()
                 case .cancelled:
                     continuation.resume(throwing: CancellationError())
                 case .failed:
-                    let message = session.error?.localizedDescription ?? "Export failed."
+                    let message = completedSession.error?.localizedDescription ?? "Export failed."
                     continuation.resume(throwing: ExportError.sessionFailed(message: message))
                 default:
-                    continuation.resume(throwing: ExportError.unexpectedStatus(rawValue: session.status.rawValue))
+                    continuation.resume(throwing: ExportError.unexpectedStatus(rawValue: completedSession.status.rawValue))
                 }
             }
         }

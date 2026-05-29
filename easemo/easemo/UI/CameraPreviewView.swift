@@ -95,7 +95,7 @@ struct AdaptiveCameraPreviewView: View {
 }
 
 /// Type-erased `Shape` so we can switch circle vs rectangle without duplicating view trees.
-private struct AnyShape: Shape {
+private struct AnyShape: Shape, @unchecked Sendable {
     private let pathBuilder: (CGRect) -> Path
 
     init<S: Shape>(_ shape: S) {

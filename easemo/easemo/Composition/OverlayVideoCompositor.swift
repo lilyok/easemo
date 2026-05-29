@@ -1,6 +1,7 @@
-import AVFoundation
+@preconcurrency import AVFoundation
 import CoreGraphics
 import CoreImage
+import CoreText
 import Foundation
 
 /// Errors thrown by `OverlayVideoCompositor.render(request:)`. Modelled as a
@@ -46,19 +47,18 @@ public enum CompositorError: LocalizedError, Equatable {
 /// `renderQueue`) are immutable `let`s. Because no shared mutable state
 /// crosses queues, the compositor is safe to hand to AVFoundation from any
 /// thread; we declare `@unchecked Sendable` to opt out of the strict
-/// Sendable check that AVFoundation's protocol cannot satisfy on its own
-/// (the `[String: Any]` attribute dictionaries are non-Sendable). If new
-/// stored properties are added that hold mutable state, they MUST also be
+/// Sendable check that AVFoundation's protocol cannot satisfy on its own. If
+/// new stored properties are added that hold mutable state, they MUST also be
 /// confined to `renderQueue`, or this annotation must be revisited.
 final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sendable {
 
     /// Hints AVFoundation about the pixel formats we accept and produce.
-    let sourcePixelBufferAttributes: [String: Any]? = [
-        kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+    let sourcePixelBufferAttributes: [String: any Sendable]? = [
+        kCVPixelBufferPixelFormatTypeKey as String: [kCVPixelFormatType_32BGRA],
         kCVPixelBufferMetalCompatibilityKey as String: true
     ]
 
-    let requiredPixelBufferAttributesForRenderContext: [String: Any] = [
+    let requiredPixelBufferAttributesForRenderContext: [String: any Sendable] = [
         kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
         kCVPixelBufferMetalCompatibilityKey as String: true
     ]
@@ -198,6 +198,11 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
             }
         }
 
+        if let watermark = instruction.watermark,
+           let watermarkImage = Self.watermarkImage(renderSize: renderSize, watermark: watermark) {
+            output = watermarkImage.composited(over: output)
+        }
+
         // Final clamp: keep output strictly within the render buffer.
         output = output.cropped(to: renderRect)
 
@@ -227,6 +232,69 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
         return whiteRect.composited(over: clearBG).cropped(to: fullCanvas)
     }
 
+    private static func watermarkImage(renderSize: CGSize, watermark: ExportWatermark) -> CIImage? {
+        let width = Int(ceil(renderSize.width))
+        let height = Int(ceil(renderSize.height))
+        guard width > 1, height > 1, !watermark.text.isEmpty else { return nil }
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(data: nil,
+                                      width: width,
+                                      height: height,
+                                      bitsPerComponent: 8,
+                                      bytesPerRow: 0,
+                                      space: colorSpace,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+            return nil
+        }
+
+        let scale = min(max(renderSize.width / 1440.0, 0.75), 2.0)
+        let alpha = min(max(watermark.opacity, 0), 1)
+        let font = CTFontCreateWithName("HelveticaNeue-Medium" as CFString,
+                                        watermark.fontSize * scale,
+                                        nil)
+        let attributes: [NSAttributedString.Key: Any] = [
+            NSAttributedString.Key(kCTFontAttributeName as String): font,
+            NSAttributedString.Key(kCTForegroundColorAttributeName as String): CGColor(red: 1, green: 1, blue: 1, alpha: alpha)
+        ]
+        let attributedText = NSAttributedString(string: watermark.text, attributes: attributes)
+        let line = CTLineCreateWithAttributedString(attributedText)
+
+        var ascent: CGFloat = 0
+        var descent: CGFloat = 0
+        var leading: CGFloat = 0
+        let textWidth = CGFloat(CTLineGetTypographicBounds(line, &ascent, &descent, &leading))
+
+        let horizontalPadding = ceil(10 * scale)
+        let verticalPadding = ceil(6 * scale)
+        let margin = ceil(22 * scale)
+        let badgeWidth = ceil(textWidth + horizontalPadding * 2)
+        let badgeHeight = ceil(ascent + descent + verticalPadding * 2)
+        let badgeOrigin = CGPoint(x: renderSize.width - badgeWidth - margin, y: margin)
+        let badgeRect = CGRect(origin: badgeOrigin, size: CGSize(width: badgeWidth, height: badgeHeight))
+
+        guard badgeRect.minX >= 0, badgeRect.maxY <= renderSize.height else { return nil }
+
+        context.clear(CGRect(x: 0, y: 0, width: width, height: height))
+        context.setShouldAntialias(true)
+        context.setShouldSmoothFonts(true)
+
+        let badgePath = CGPath(roundedRect: badgeRect,
+                               cornerWidth: badgeHeight / 2,
+                               cornerHeight: badgeHeight / 2,
+                               transform: nil)
+        context.addPath(badgePath)
+        context.setFillColor(CGColor(red: 124 / 255, green: 58 / 255, blue: 237 / 255, alpha: alpha * 0.48))
+        context.fillPath()
+
+        context.textPosition = CGPoint(x: badgeRect.minX + horizontalPadding,
+                                       y: badgeRect.midY - ((ascent - descent) / 2))
+        CTLineDraw(line, context)
+
+        guard let cgImage = context.makeImage() else { return nil }
+        return CIImage(cgImage: cgImage).cropped(to: CGRect(origin: .zero, size: renderSize))
+    }
+
     private func scaledToFit(_ image: CIImage, in size: CGSize) -> CIImage {
         let extent = image.extent
         guard extent.width > 0, extent.height > 0 else { return image }
@@ -243,7 +311,7 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
 ///
 /// Either **`motionTimeline`** is set (single instruction over full export — PiP resolved per frame),
 /// or **`cameraFrame`** / **`shape`** / **`staticOverlayCameraCompositionID`** describe a fixed overlay slice.
-final class OverlayInstruction: NSObject, AVVideoCompositionInstructionProtocol {
+final class OverlayInstruction: NSObject, AVVideoCompositionInstructionProtocol, @unchecked Sendable {
 
     let screenTrackID: CMPersistentTrackID
     /// Present whenever the composition includes a camera track (`requiredSourceTrackIDs`).
@@ -261,6 +329,8 @@ final class OverlayInstruction: NSObject, AVVideoCompositionInstructionProtocol 
     let cameraPreferredTransform: CGAffineTransform?
     /// When true, blur the **webcam** background (room behind you) via Vision person segmentation before compositing.
     let blurBackgroundBehindWebcam: Bool
+    /// Optional export watermark applied after screen and camera are composited.
+    let watermark: ExportWatermark?
 
     let timeRange: CMTimeRange
     let enablePostProcessing: Bool = false
@@ -277,7 +347,8 @@ final class OverlayInstruction: NSObject, AVVideoCompositionInstructionProtocol 
          shape: OverlayShape,
          screenPreferredTransform: CGAffineTransform,
          cameraPreferredTransform: CGAffineTransform?,
-         blurBackgroundBehindWebcam: Bool) {
+         blurBackgroundBehindWebcam: Bool,
+         watermark: ExportWatermark?) {
         self.timeRange = timeRange
         self.screenTrackID = screenTrackID
         self.persistentCameraCompositionID = persistentCameraCompositionID
@@ -288,6 +359,7 @@ final class OverlayInstruction: NSObject, AVVideoCompositionInstructionProtocol 
         self.screenPreferredTransform = screenPreferredTransform
         self.cameraPreferredTransform = cameraPreferredTransform
         self.blurBackgroundBehindWebcam = blurBackgroundBehindWebcam
+        self.watermark = watermark
         var ids: [NSValue] = [NSNumber(value: screenTrackID)]
         if let persistentCameraCompositionID {
             ids.append(NSNumber(value: persistentCameraCompositionID))

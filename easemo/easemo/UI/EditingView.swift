@@ -78,6 +78,9 @@ struct EditingView: View {
         .onChange(of: appState.muteAudio, perform: { _ in
             scheduleComposedPreviewRebuild(immediatePlayback: true)
         })
+        .onChange(of: appState.hasLifetimeAccess, perform: { _ in
+            scheduleComposedPreviewRebuild(immediatePlayback: true)
+        })
     }
 
     private var easemoEditingBackground: some View {
@@ -207,6 +210,25 @@ struct EditingView: View {
                 }
                 Spacer(minLength: 0)
             }
+
+            Divider()
+                .background(EasemoTheme.panelBorder)
+
+            LifetimeAccessCard(
+                storeKitManager: appState.storeKitManager,
+                onPurchase: {
+                    Task {
+                        await appState.purchaseLifetimeAccess()
+                        scheduleComposedPreviewRebuild(immediatePlayback: true)
+                    }
+                },
+                onRestore: {
+                    Task {
+                        await appState.restorePurchases()
+                        scheduleComposedPreviewRebuild(immediatePlayback: true)
+                    }
+                }
+            )
         }
         .padding(20)
         .easemoPanelStyle()
@@ -385,7 +407,8 @@ struct EditingView: View {
                                                              speed: appState.playbackSpeed,
                                                              trimStart: appState.trimStartSeconds,
                                                              trimEnd: appState.trimEndSeconds,
-                                                             muteAudio: appState.muteAudio)
+                                                             muteAudio: appState.muteAudio,
+                                                             watermark: appState.exportWatermark)
             guard token == previewRebuildToken else { return }
 
             let item = AVPlayerItem(asset: bundle.composition)
@@ -444,6 +467,84 @@ struct EditingView: View {
         player.seek(to: CMTime(seconds: out, preferredTimescale: 600),
                     toleranceBefore: .zero,
                     toleranceAfter: .zero)
+    }
+}
+
+private struct LifetimeAccessCard: View {
+    @ObservedObject var storeKitManager: StoreKitManager
+    let onPurchase: () -> Void
+    let onRestore: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: storeKitManager.hasLifetimeAccess ? "checkmark.seal.fill" : "seal")
+                    .foregroundStyle(EasemoTheme.accentPurple)
+                    .font(.system(size: 16, weight: .semibold))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(storeKitManager.hasLifetimeAccess ? "Lifetime Access active" : "Free export")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(EasemoTheme.textPrimary)
+                    Text(storeKitManager.hasLifetimeAccess
+                         ? "Exports are watermark-free."
+                         : "Exports include a small easemo watermark. Lifetime Access removes it permanently.")
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundStyle(EasemoTheme.textSecondary)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            if !storeKitManager.hasLifetimeAccess {
+                HStack(spacing: 10) {
+                    Button(action: onPurchase) {
+                        Text(purchaseButtonTitle)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(EasemoTheme.accentGradient)
+                            .clipShape(RoundedRectangle(cornerRadius: EasemoTheme.radiusButton, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(storeKitManager.purchaseInProgress)
+                    .opacity(storeKitManager.purchaseInProgress ? 0.65 : 1)
+
+                    Button("Restore") {
+                        onRestore()
+                    }
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(EasemoTheme.textSecondary)
+                    .buttonStyle(.plain)
+                    .disabled(storeKitManager.purchaseInProgress)
+                }
+            }
+
+            if let message = storeKitManager.storeErrorMessage {
+                Text(message)
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundStyle(EasemoTheme.textMuted)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(EasemoTheme.sliderTrackInactive.opacity(0.55))
+        .clipShape(RoundedRectangle(cornerRadius: EasemoTheme.radiusInput, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: EasemoTheme.radiusInput, style: .continuous)
+                .stroke(EasemoTheme.panelBorder, lineWidth: 1)
+        )
+    }
+
+    private var purchaseButtonTitle: String {
+        if storeKitManager.purchaseInProgress {
+            return "Purchasing..."
+        }
+        if let price = storeKitManager.lifetimeAccessPriceText {
+            return "Unlock \(price)"
+        }
+        return "Unlock Lifetime Access"
     }
 }
 
