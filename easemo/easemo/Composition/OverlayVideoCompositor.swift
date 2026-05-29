@@ -284,7 +284,7 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
                                cornerHeight: badgeHeight / 2,
                                transform: nil)
         context.addPath(badgePath)
-        context.setFillColor(CGColor(red: 0, green: 0, blue: 0, alpha: alpha * 0.48))
+        context.setFillColor(CGColor(red: 124 / 255, green: 58 / 255, blue: 237 / 255, alpha: alpha * 0.48))
         context.fillPath()
 
         context.textPosition = CGPoint(x: badgeRect.minX + horizontalPadding,
