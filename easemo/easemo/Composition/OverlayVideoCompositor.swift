@@ -1,4 +1,4 @@
-import AVFoundation
+@preconcurrency import AVFoundation
 import CoreGraphics
 import CoreImage
 import CoreText
@@ -312,7 +312,7 @@ final class OverlayVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sen
 ///
 /// Either **`motionTimeline`** is set (single instruction over full export — PiP resolved per frame),
 /// or **`cameraFrame`** / **`shape`** / **`staticOverlayCameraCompositionID`** describe a fixed overlay slice.
-final class OverlayInstruction: NSObject, AVVideoCompositionInstructionProtocol {
+final class OverlayInstruction: NSObject, AVVideoCompositionInstructionProtocol, @unchecked Sendable {
 
     let screenTrackID: CMPersistentTrackID
     /// Present whenever the composition includes a camera track (`requiredSourceTrackIDs`).

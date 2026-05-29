@@ -74,7 +74,7 @@ public final class AppState: ObservableObject {
     public init(coordinator: CaptureSessionCoordinator,
                 composer: VideoComposer = VideoComposer(),
                 exportManager: ExportManager,
-                storeKitManager: StoreKitManager = StoreKitManager()) {
+                storeKitManager: StoreKitManager) {
         self.coordinator = coordinator
         self.composer = composer
         self.exportManager = exportManager
