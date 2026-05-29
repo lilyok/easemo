@@ -76,7 +76,7 @@ struct RecordingView: View {
         VStack(spacing: 6) {
             Text("easemo")
                 .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(EasemoTheme.textPrimary)
+                .foregroundStyle(EasemoTheme.accentPurple.opacity(0.88))
             Text("Record. Compose. Ship demos faster.")
                 .font(.system(size: 14, weight: .regular))
                 .foregroundStyle(EasemoTheme.textSecondary)
