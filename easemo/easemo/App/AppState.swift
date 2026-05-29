@@ -341,15 +341,17 @@ private final class RecordingUIBridge: NSObject {
             object: panel,
             queue: .main
         ) { [weak self, weak panel] _ in
-            guard let self = self, let panel = panel, let screen = panel.screen ?? NSScreen.main else { return }
-            let visible = screen.visibleFrame
-            let center = CGPoint(x: panel.frame.midX, y: panel.frame.midY)
-            let normalized = CGPoint(
-                x: min(max((center.x - visible.minX) / max(visible.width, 1), 0), 1),
-                y: min(max((visible.maxY - center.y) / max(visible.height, 1), 0), 1)
-            )
-            self.applyOverlayChange {
-                $0.customCenter = normalized
+            Task { @MainActor [weak self, weak panel] in
+                guard let self = self, let panel = panel, let screen = panel.screen ?? NSScreen.main else { return }
+                let visible = screen.visibleFrame
+                let center = CGPoint(x: panel.frame.midX, y: panel.frame.midY)
+                let normalized = CGPoint(
+                    x: min(max((center.x - visible.minX) / max(visible.width, 1), 0), 1),
+                    y: min(max((visible.maxY - center.y) / max(visible.height, 1), 0), 1)
+                )
+                self.applyOverlayChange {
+                    $0.customCenter = normalized
+                }
             }
         }
     }
