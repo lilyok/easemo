@@ -67,6 +67,7 @@ public final class AppState: ObservableObject {
         self.init(coordinator: CaptureSessionCoordinator(),
                   composer: VideoComposer(),
                   exportManager: ExportManager(),
+                  // To test: storeKitManager: StoreKitManager(startListening: false, initialHasLifetimeAccess: true)
                   storeKitManager: StoreKitManager())
     }
 
