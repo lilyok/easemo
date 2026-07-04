@@ -64,7 +64,7 @@ easemo/
     │   └── EditingView.swift
     ├── Resources/
     │   ├── Info.plist                 # Usage descriptions
-    │   └── easemo.entitlements        # Sandbox + camera + screen recording
+    │   └── easemo.entitlements        # Sandbox + camera/microphone access
     ├── Assets.xcassets/
     └── Preview Content/
 └── easemoTests/
