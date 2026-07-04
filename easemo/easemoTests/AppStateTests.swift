@@ -48,20 +48,4 @@ final class AppStateTests: XCTestCase {
         XCTAssertFalse(state.muteAudio,
                        "Going back to the recording screen must clear per-take edit choices like mute.")
     }
-
-    func testExportWatermarkDefaultsWhenLifetimeAccessIsInactive() {
-        let state = AppState(coordinator: CaptureSessionCoordinator(),
-                             exportManager: ExportManager(),
-                             storeKitManager: StoreKitManager(startListening: false,
-                                                              initialHasLifetimeAccess: false))
-        XCTAssertEqual(state.exportWatermark, .easemo)
-    }
-
-    func testExportWatermarkClearsWhenLifetimeAccessIsActive() {
-        let state = AppState(coordinator: CaptureSessionCoordinator(),
-                             exportManager: ExportManager(),
-                             storeKitManager: StoreKitManager(startListening: false,
-                                                              initialHasLifetimeAccess: true))
-        XCTAssertNil(state.exportWatermark)
-    }
 }

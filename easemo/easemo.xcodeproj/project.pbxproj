@@ -9,7 +9,6 @@
 /* Begin PBXBuildFile section */
 		A100000000000000000000A1 /* EasemoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000A1 /* EasemoApp.swift */; };
 		A100000000000000000000A2 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000A2 /* AppState.swift */; };
-		A10000000000000000000101 /* StoreKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000101 /* StoreKitManager.swift */; };
 		A100000000000000000000A3 /* RecordingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000A3 /* RecordingManager.swift */; };
 		A100000000000000000000A4 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000A4 /* CameraManager.swift */; };
 		A100000000000000000000FC /* CameraLiveBackgroundBlurProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000FC /* CameraLiveBackgroundBlurProcessor.swift */; };
@@ -56,7 +55,6 @@
 /* Begin PBXFileReference section */
 		B100000000000000000000A1 /* EasemoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EasemoApp.swift; sourceTree = "<group>"; };
 		B100000000000000000000A2 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
-		B10000000000000000000101 /* StoreKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitManager.swift; sourceTree = "<group>"; };
 		B100000000000000000000A3 /* RecordingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingManager.swift; sourceTree = "<group>"; };
 		B100000000000000000000A4 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
 		B100000000000000000000FC /* CameraLiveBackgroundBlurProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraLiveBackgroundBlurProcessor.swift; sourceTree = "<group>"; };
@@ -90,7 +88,6 @@
 		B100000000000000000000FE /* WebcamBackgroundBlurTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebcamBackgroundBlurTests.swift; sourceTree = "<group>"; };
 		B100000000000000000000B3 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B100000000000000000000B4 /* easemo.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = easemo.entitlements; sourceTree = "<group>"; };
-		B10000000000000000000102 /* Easemo.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Easemo.storekit; sourceTree = "<group>"; };
 		B100000000000000000000B5 /* easemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = easemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B100000000000000000000B6 /* easemoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = easemoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -144,7 +141,6 @@
 			children = (
 				B100000000000000000000A1 /* EasemoApp.swift */,
 				B100000000000000000000A2 /* AppState.swift */,
-				B10000000000000000000101 /* StoreKitManager.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -233,7 +229,6 @@
 			children = (
 				B100000000000000000000B3 /* Info.plist */,
 				B100000000000000000000B4 /* easemo.entitlements */,
-				B10000000000000000000102 /* Easemo.storekit */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -348,7 +343,6 @@
 			files = (
 				A100000000000000000000A1 /* EasemoApp.swift in Sources */,
 				A100000000000000000000A2 /* AppState.swift in Sources */,
-				A10000000000000000000101 /* StoreKitManager.swift in Sources */,
 				A100000000000000000000A3 /* RecordingManager.swift in Sources */,
 				A100000000000000000000A4 /* CameraManager.swift in Sources */,
 				A100000000000000000000FC /* CameraLiveBackgroundBlurProcessor.swift in Sources */,

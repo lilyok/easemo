@@ -1,21 +1,6 @@
 import AVFoundation
 import CoreGraphics
-import CoreImage
 import Foundation
-
-public struct ExportWatermark: Equatable {
-    public let text: String
-    public let opacity: CGFloat
-    public let fontSize: CGFloat
-
-    public static let easemo = ExportWatermark(text: "easemo")
-
-    public init(text: String, opacity: CGFloat = 0.68, fontSize: CGFloat = 18) {
-        self.text = text
-        self.opacity = opacity
-        self.fontSize = fontSize
-    }
-}
 
 /// `VideoComposer` builds an `AVMutableComposition` and a matching
 /// `AVMutableVideoComposition` that overlays the camera recording on top of
@@ -77,14 +62,12 @@ public final class VideoComposer {
     ///   - trimStart: Start offset in seconds (applied before speed scaling).
     ///   - trimEnd: End offset in seconds (applied before speed scaling).
     ///   - muteAudio: When true, the audio track is silenced in the output.
-    ///   - watermark: Optional watermark rendered over the final video frame.
     public func compose(result: RecordingResult,
                         layout: OverlayLayout,
                         speed: Double,
                         trimStart: Double,
                         trimEnd: Double,
-                        muteAudio: Bool = false,
-                        watermark: ExportWatermark? = nil) async throws -> ComposedAssetBundle {
+                        muteAudio: Bool = false) async throws -> ComposedAssetBundle {
 
         let clampedSpeed = max(0.25, min(speed, 4.0))
 
@@ -210,8 +193,7 @@ public final class VideoComposer {
             scaledDuration: scaledDuration,
             screenPreferredTransform: screenPreferredTransform,
             cameraPreferredTransform: cameraPreferredTransform,
-            blurBackgroundBehindWebcam: result.blurBackgroundBehindWebcam,
-            watermark: watermark
+            blurBackgroundBehindWebcam: result.blurBackgroundBehindWebcam
         )
         videoComposition.instructions = instructions
 
@@ -252,8 +234,7 @@ public final class VideoComposer {
                                           scaledDuration: CMTime,
                                           screenPreferredTransform: CGAffineTransform,
                                           cameraPreferredTransform: CGAffineTransform?,
-                                          blurBackgroundBehindWebcam: Bool,
-                                          watermark: ExportWatermark?) -> [OverlayInstruction] {
+                                          blurBackgroundBehindWebcam: Bool) -> [OverlayInstruction] {
         let cameraPersistentID = composedCamera?.trackID
 
         func makeSlice(timeRange: CMTimeRange, layout: OverlayLayout) -> OverlayInstruction {
@@ -267,8 +248,7 @@ public final class VideoComposer {
                 shape: layout.shape,
                 screenPreferredTransform: screenPreferredTransform,
                 cameraPreferredTransform: cameraPreferredTransform,
-                blurBackgroundBehindWebcam: blurBackgroundBehindWebcam,
-                watermark: watermark
+                blurBackgroundBehindWebcam: blurBackgroundBehindWebcam
             )
         }
 
@@ -309,8 +289,7 @@ public final class VideoComposer {
                 shape: .rectangle,
                 screenPreferredTransform: screenPreferredTransform,
                 cameraPreferredTransform: cameraPreferredTransform,
-                blurBackgroundBehindWebcam: blurBackgroundBehindWebcam,
-                watermark: watermark
+                blurBackgroundBehindWebcam: blurBackgroundBehindWebcam
             )
         ]
     }
