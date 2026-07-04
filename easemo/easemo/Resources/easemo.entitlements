@@ -12,7 +12,5 @@
 	<true/>
 	<key>com.apple.security.network.client</key>
 	<false/>
-	<key>com.apple.security.screen-recording</key>
-	<true/>
 </dict>
 </plist>
