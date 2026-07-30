@@ -123,6 +123,16 @@
       box-shadow: 0 14px 36px rgba(124, 60, 255, 0.34);
     }
 
+    .button + .button {
+      margin-left: 10px;
+    }
+
+    .button.secondary {
+      border: 1px solid var(--card-border);
+      background: rgba(255, 255, 255, 0.08);
+      box-shadow: none;
+    }
+
     footer {
       margin-top: 28px;
       color: rgba(246, 244, 255, 0.64);
@@ -162,10 +172,14 @@
           <h2 id="support-title">Support</h2>
           <p>
             For help, bug reports, feedback, or feature requests, email
-            <a href="mailto:lbox@novs.uk">lbox@novs.uk</a>.
+            <a href="mailto:lbox@novs.uk">lbox@novs.uk</a> or
+            <a href="https://github.com/lilyok/easemo/issues">create an issue on GitHub</a>.
           </p>
           <a class="button" href="mailto:lbox@novs.uk?subject=easemo%20Support">
             Contact support
+          </a>
+          <a class="button secondary" href="https://github.com/lilyok/easemo/issues">
+            Create an issue
           </a>
         </section>
 
