@@ -4,6 +4,26 @@ DerivedData/
 *.xcuserstate
 *.xcuserdatad/
 xcuserdata/
+*.xcarchive
+*.xcresult
+*.ipa
+*.pkg
+
+# Apple signing and provisioning material
+*.cer
+*.crt
+*.der
+*.p12
+*.pem
+*.key
+*.p8
+*.mobileprovision
+*.provisionprofile
+
+# Environment and local secrets
+.env
+.env.*
+*.env
 
 # Swift Package Manager
 .build/
@@ -13,6 +33,10 @@ Package.resolved
 # Per-machine LSP / build-server config (regenerated locally via
 # `xcode-build-server config -workspace ... -scheme ...`).
 buildServer.json
+
+# Editor/agent local configuration
+.cursor/
+.vscode/
 
 # macOS noise
 .DS_Store
