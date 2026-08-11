@@ -22,10 +22,13 @@ final class AudioSampleWriter {
 
     private let writer: AVAssetWriter
     private let audioInput: AVAssetWriterInput
+    private let queue = DispatchQueue(label: "easemo.audio-writer.\(UUID().uuidString)")
 
     private var hasStartedSession = false
-    private(set) var lastPresentationTime: CMTime = .zero
-    private(set) var isFinished = false
+    private var lastPresentationTime: CMTime = .zero
+    private var isFinishing = false
+    private var finishResult: Result<URL, Error>?
+    private var finishCompletions: [(Result<URL, Error>) -> Void] = []
 
     /// - Parameters:
     ///   - url: Destination `.m4a` file URL. Must not exist.
@@ -63,46 +66,65 @@ final class AudioSampleWriter {
 
     /// Begin writing. Must be called exactly once before `append`.
     func start(at time: CMTime) throws {
-        guard !hasStartedSession else { throw WriterError.alreadyStarted }
-        guard writer.startWriting() else {
-            throw WriterError.failed(writer.error?.localizedDescription ?? "startWriting failed")
+        try queue.sync {
+            guard !hasStartedSession else { throw WriterError.alreadyStarted }
+            guard writer.startWriting() else {
+                throw WriterError.failed(writer.error?.localizedDescription ?? "startWriting failed")
+            }
+            writer.startSession(atSourceTime: time)
+            hasStartedSession = true
         }
-        writer.startSession(atSourceTime: time)
-        hasStartedSession = true
     }
 
     /// Append one audio sample. Drops out-of-order samples to keep the
     /// timeline strictly monotonic.
     func append(_ sampleBuffer: CMSampleBuffer) {
-        guard hasStartedSession, !isFinished else { return }
-        guard audioInput.isReadyForMoreMediaData else { return }
-        let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-        guard CMTIME_IS_VALID(pts) else { return }
-        if CMTIME_IS_VALID(lastPresentationTime),
-           CMTimeCompare(pts, lastPresentationTime) < 0 {
-            return
+        queue.sync {
+            guard hasStartedSession, !isFinishing else { return }
+            guard audioInput.isReadyForMoreMediaData else { return }
+            let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+            guard CMTIME_IS_VALID(pts) else { return }
+            if CMTIME_IS_VALID(lastPresentationTime),
+               CMTimeCompare(pts, lastPresentationTime) < 0 {
+                return
+            }
+            audioInput.append(sampleBuffer)
+            lastPresentationTime = pts
         }
-        audioInput.append(sampleBuffer)
-        lastPresentationTime = pts
     }
 
-    /// Finalize the file. Safe to call multiple times.
+    /// Finalize the file. Safe to call multiple times and concurrently with
+    /// capture callbacks that are still delivering their final samples.
     func finish(_ completion: @escaping (Result<URL, Error>) -> Void) {
-        guard hasStartedSession else {
-            completion(.failure(WriterError.notStarted))
-            return
-        }
-        if isFinished {
-            completion(.success(url))
-            return
-        }
-        isFinished = true
-        audioInput.markAsFinished()
-        writer.finishWriting { [writer, url] in
-            if writer.status == .completed {
-                completion(.success(url))
-            } else {
-                completion(.failure(WriterError.failed(writer.error?.localizedDescription ?? "writer failed")))
+        queue.async {
+            guard self.hasStartedSession else {
+                completion(.failure(WriterError.notStarted))
+                return
+            }
+            if let result = self.finishResult {
+                completion(result)
+                return
+            }
+
+            self.finishCompletions.append(completion)
+            guard !self.isFinishing else { return }
+            self.isFinishing = true
+            self.audioInput.markAsFinished()
+            self.writer.finishWriting {
+                self.queue.async {
+                    let result: Result<URL, Error>
+                    if self.writer.status == .completed {
+                        result = .success(self.url)
+                    } else {
+                        result = .failure(
+                            WriterError.failed(self.writer.error?.localizedDescription ?? "writer failed")
+                        )
+                    }
+                    self.finishResult = result
+                    let completions = self.finishCompletions
+                    self.finishCompletions.removeAll()
+                    completions.forEach { $0(result) }
+                }
             }
         }
     }
