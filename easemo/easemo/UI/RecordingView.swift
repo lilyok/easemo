@@ -12,6 +12,10 @@ struct RecordingView: View {
         appState.statusMessage == "Preparing…"
     }
 
+    private var recordControlsDisabled: Bool {
+        isPreparing || coordinator.isStopping
+    }
+
     var body: some View {
         ZStack {
             easemoBackground
@@ -52,7 +56,7 @@ struct RecordingView: View {
     }
 
     private func syncLiveWebcamBlurPreview() {
-        guard appState.configuration.includeCamera else {
+        guard appState.configuration.includeCamera, !coordinator.isStopping else {
             coordinator.cameraManager.setBlurBackgroundEnabled(false)
             return
         }
@@ -121,6 +125,8 @@ struct RecordingView: View {
             }
         }
         .buttonStyle(.plain)
+        .disabled(coordinator.isStopping)
+        .opacity(coordinator.isStopping ? 0.55 : 1)
         .accessibilityLabel(coordinator.isRecording ? "Stop recording" : "Start recording")
     }
 
@@ -161,8 +167,8 @@ struct RecordingView: View {
                             .shadow(color: EasemoTheme.accentPurple.opacity(0.35), radius: 14, y: 6)
                     }
                     .buttonStyle(.plain)
-                    .disabled(isPreparing)
-                    .opacity(isPreparing ? 0.55 : 1)
+                    .disabled(recordControlsDisabled)
+                    .opacity(recordControlsDisabled ? 0.55 : 1)
 
                     if isPreparing {
                         Text("Preparing…")

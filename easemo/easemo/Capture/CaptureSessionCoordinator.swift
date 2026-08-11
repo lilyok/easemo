@@ -31,6 +31,7 @@ public final class CaptureSessionCoordinator: ObservableObject {
     }
 
     @Published public private(set) var isRecording = false
+    @Published public private(set) var isStopping = false
     @Published public private(set) var elapsedSeconds: TimeInterval = 0
     @Published public private(set) var lastResult: RecordingResult?
     @Published public private(set) var lastErrorMessage: String?
@@ -131,12 +132,14 @@ public final class CaptureSessionCoordinator: ObservableObject {
     public func stop(finalOverlay overlay: OverlayLayout) async throws -> RecordingResult {
         guard isRecording else { throw CoordinatorError.notRunning }
         stopTimer()
+        isStopping = true
         defer {
             if configuration.includeCamera {
                 cameraManager.stopPreview()
             }
             audioManager.teardown()
             overlayMotionKeyframes.removeAll()
+            isStopping = false
         }
 
         recordPiPLayoutSample(overlay)
