@@ -131,6 +131,13 @@ public final class CaptureSessionCoordinator: ObservableObject {
     public func stop(finalOverlay overlay: OverlayLayout) async throws -> RecordingResult {
         guard isRecording else { throw CoordinatorError.notRunning }
         stopTimer()
+        defer {
+            if configuration.includeCamera {
+                cameraManager.stopPreview()
+            }
+            audioManager.teardown()
+            overlayMotionKeyframes.removeAll()
+        }
 
         recordPiPLayoutSample(overlay)
 
@@ -168,11 +175,6 @@ public final class CaptureSessionCoordinator: ObservableObject {
 
         let screenURL = try await recordingManager.stopRecording()
 
-        if configuration.includeCamera {
-            cameraManager.stopPreview()
-        }
-        audioManager.teardown()
-
         let duration = CMTime(seconds: durationSeconds, preferredTimescale: 600)
         let result = RecordingResult(
             screenURL: screenURL,
@@ -185,7 +187,6 @@ public final class CaptureSessionCoordinator: ObservableObject {
             overlayMotion: motionKeyframes,
             blurBackgroundBehindWebcam: configuration.blurBackgroundBehindWebcam
         )
-        overlayMotionKeyframes.removeAll()
         lastResult = result
         return result
     }
