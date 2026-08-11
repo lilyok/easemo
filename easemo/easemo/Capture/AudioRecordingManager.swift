@@ -132,6 +132,14 @@ public final class AudioRecordingManager: NSObject, ObservableObject {
         }
         state = .ready
         sampleHandlerRef.value = nil
+        // Clearing the reference does not invalidate a handler already
+        // loaded by a delegate callback. Drain the serial sample queue before
+        // finalizing so that callback cannot append to a finished input.
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            sampleQueue.async {
+                continuation.resume()
+            }
+        }
         return try await withCheckedThrowingContinuation { continuation in
             handler.writer.finish { result in
                 Task { @MainActor in

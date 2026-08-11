@@ -188,6 +188,14 @@ public final class RecordingManager: NSObject, ObservableObject {
         let output = streamOutput
         stream = nil
         streamOutput = nil
+        // `stopCapture()` can return while a final delegate callback is
+        // already queued. Drain that queue before marking the writer input
+        // finished so no sample can be appended during finalization.
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            outputQueue.async {
+                continuation.resume()
+            }
+        }
         #endif
 
         #if canImport(ScreenCaptureKit)

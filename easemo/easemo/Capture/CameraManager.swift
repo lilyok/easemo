@@ -168,6 +168,14 @@ public final class CameraManager: NSObject, ObservableObject {
         }
         state = .preview
         sampleHandlerRef.value = nil
+        // A delegate callback may have loaded the old handler immediately
+        // before the reference was cleared. Wait for that callback to leave
+        // the serial sample queue before finalizing its writer.
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            sampleQueue.async {
+                continuation.resume()
+            }
+        }
         return try await withCheckedThrowingContinuation { continuation in
             handler.writer.finish { result in
                 Task { @MainActor in
