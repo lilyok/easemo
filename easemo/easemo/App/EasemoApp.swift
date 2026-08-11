@@ -1,5 +1,7 @@
 import SwiftUI
 
+private let mainWindowID = "main"
+
 /// Application entry point.
 ///
 /// `easemo` is a lightweight, fully-local macOS screen recording and editing
@@ -10,7 +12,7 @@ struct EasemoApp: App {
     @StateObject private var appState = AppState()
 
     var body: some Scene {
-        WindowGroup("easemo") {
+        Window("easemo", id: mainWindowID) {
             RootView()
                 .environmentObject(appState)
                 .frame(minWidth: 720, minHeight: 520)
@@ -18,7 +20,22 @@ struct EasemoApp: App {
         .windowStyle(.titleBar)
         .windowResizability(.contentSize)
         .commands {
-            CommandGroup(replacing: .newItem) {} // No "New" window
+            MainWindowCommands()
+        }
+    }
+}
+
+/// Keeps the single app window discoverable after the user closes it.
+private struct MainWindowCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandGroup(replacing: .newItem) {}
+        CommandGroup(after: .windowArrangement) {
+            Button("Open Main Window") {
+                openWindow(id: mainWindowID)
+            }
+            .keyboardShortcut("0", modifiers: .command)
         }
     }
 }
