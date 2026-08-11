@@ -113,6 +113,22 @@ final class SampleBufferWriter {
 
             self.finishCompletions.append(completion)
             guard !self.isFinishing else { return }
+            guard self.writer.status == .writing else {
+                let result: Result<URL, Error>
+                if self.writer.status == .completed {
+                    result = .success(self.url)
+                } else {
+                    result = .failure(
+                        WriterError.failed(self.writer.error?.localizedDescription
+                            ?? "Cannot finish writer in status \(self.writer.status.rawValue)")
+                    )
+                }
+                self.finishResult = result
+                let completions = self.finishCompletions
+                self.finishCompletions.removeAll()
+                completions.forEach { $0(result) }
+                return
+            }
             self.isFinishing = true
             self.videoInput.markAsFinished()
             self.writer.finishWriting {
