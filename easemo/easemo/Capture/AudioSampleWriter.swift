@@ -81,6 +81,7 @@ final class AudioSampleWriter {
     func append(_ sampleBuffer: CMSampleBuffer) {
         queue.sync {
             guard hasStartedSession, !isFinishing else { return }
+            guard writer.status == .writing else { return }
             guard audioInput.isReadyForMoreMediaData else { return }
             let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
             guard CMTIME_IS_VALID(pts) else { return }
