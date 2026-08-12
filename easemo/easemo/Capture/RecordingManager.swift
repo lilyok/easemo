@@ -1,6 +1,7 @@
 import AVFoundation
 import Combine
 import CoreMedia
+import CoreGraphics
 import Foundation
 #if canImport(ScreenCaptureKit)
 import ScreenCaptureKit
@@ -86,6 +87,9 @@ public final class RecordingManager: NSObject, ObservableObject {
 
         #if canImport(ScreenCaptureKit)
         do {
+            guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else {
+                throw RecordingError.permissionDenied
+            }
             let content = try await SCShareableContent.excludingDesktopWindows(false,
                                                                                onScreenWindowsOnly: true)
             guard let display = content.displays.first else {
