@@ -28,7 +28,7 @@
 	<string>easemo needs camera access to record your webcam alongside the screen.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>easemo records audio from the microphone to narrate your demos.</string>
-	<key>NSScreenCaptureDescription</key>
+	<key>NSScreenCaptureUsageDescription</key>
 	<string>easemo records your screen to produce demo videos.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Liliia Ivanova</string>
