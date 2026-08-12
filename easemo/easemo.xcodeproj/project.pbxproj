@@ -528,7 +528,7 @@
 				CODE_SIGN_ENTITLEMENTS = easemo/Resources/easemo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"easemo/Preview Content\"";
 				DEVELOPMENT_TEAM = V3XY5R5N6T;
@@ -557,7 +557,7 @@
 				CODE_SIGN_ENTITLEMENTS = easemo/Resources/easemo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"easemo/Preview Content\"";
 				DEVELOPMENT_TEAM = V3XY5R5N6T;
