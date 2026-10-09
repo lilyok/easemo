@@ -1,62 +1,123 @@
+import AppKit
+import CoreGraphics
 import SwiftUI
 
-/// Recording screen: record control, floating draggable webcam, and input settings.
+/// Recording screen: live screen preview, webcam overlay, and input settings.
 struct RecordingView: View {
     @EnvironmentObject private var appState: AppState
-    @State private var isPreviewReady = false
+
+    var body: some View {
+        RecordingWorkspace(
+            screenPreview: appState.coordinator.screenPreview,
+            cameraManager: appState.coordinator.cameraManager
+        )
+            .environmentObject(appState)
+            .preferredColorScheme(.dark)
+    }
+}
+
+private struct RecordingWorkspace: View {
+    @EnvironmentObject private var appState: AppState
+    @ObservedObject var screenPreview: ScreenPreviewManager
+    let cameraManager: CameraManager
+    @State private var cameraReady = false
     @State private var dragStartCenter: CGPoint?
+    @State private var isDisplayPickerOpen = false
 
     private var coordinator: CaptureSessionCoordinator { appState.coordinator }
 
     private var isPreparing: Bool {
-        appState.statusMessage == "Preparing…"
+        appState.captureTransition == .preparing || appState.statusMessage == "Preparing…"
+    }
+
+    private var selectedDisplay: CaptureDisplay? {
+        screenPreview.displays.first(where: { $0.id == appState.configuration.selectedDisplayID })
+            ?? screenPreview.displays.first(where: \.isMain)
+            ?? screenPreview.displays.first
+    }
+
+    private var previewAspect: CGFloat {
+        selectedDisplay?.aspectRatio ?? (16.0 / 9.0)
     }
 
     var body: some View {
         ZStack {
             easemoBackground
-            VStack(spacing: 0) {
+            VStack(spacing: 12) {
                 header
                     .padding(.top, 8)
-                Spacer(minLength: 16)
-                recordStack
-                Spacer(minLength: 16)
-                controlsPanel
+                HStack(alignment: .top, spacing: 20) {
+                    VStack(spacing: 12) {
+                        screenPreviewCanvas
+                        recordStack
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                    ScrollView {
+                        controlsPanel
+                            .padding(.bottom, 16)
+                    }
+                    .frame(width: 340)
+                }
             }
-            .padding(.horizontal, 28)
-            .padding(.bottom, 24)
-            cameraOverlay
+            .padding(.horizontal, 20)
+            .padding(.bottom, 12)
         }
         .task {
-            if appState.configuration.includeCamera, !isPreviewReady {
-                try? await coordinator.cameraManager.startPreview()
-                isPreviewReady = true
-                syncLiveWebcamBlurPreview()
-            }
+            startScreenPreviewIfNeeded()
+            // Keep the camera session running on this screen so Webcam off/on only hides the overlay.
+            try? await cameraManager.startPreview()
+            cameraReady = cameraManager.state == .preview
+            syncLiveWebcamBlurPreview()
         }
         .onChange(of: appState.configuration.includeCamera, perform: { newValue in
-            Task {
-                if newValue {
-                    try? await coordinator.cameraManager.startPreview()
-                    isPreviewReady = true
-                    syncLiveWebcamBlurPreview()
-                } else {
-                    coordinator.cameraManager.stopPreview()
-                    isPreviewReady = false
+            if newValue {
+                Task {
+                    try? await cameraManager.startPreview()
+                    cameraReady = cameraManager.state == .preview
                 }
+            }
+            syncLiveWebcamBlurPreview()
+        })
+        .onChange(of: appState.configuration.selectedDisplayID, perform: { newValue in
+            screenPreview.startPreview(displayID: newValue)
+        })
+        .onChange(of: coordinator.isRecording, perform: { recording in
+            syncLiveWebcamBlurPreview()
+            if recording {
+                screenPreview.stopPreview()
             }
         })
         .onAppear(perform: syncLiveWebcamBlurPreview)
+        .onDisappear {
+            screenPreview.stopPreview()
+        }
         .onChange(of: appState.configuration.blurBackgroundBehindWebcam, perform: { _ in syncLiveWebcamBlurPreview() })
-        .onChange(of: coordinator.isRecording, perform: { _ in syncLiveWebcamBlurPreview() })
+    }
+
+    private func startScreenPreviewIfNeeded() {
+        guard !coordinator.isRecording else { return }
+        screenPreview.refreshDisplays()
+        syncSelectedDisplay()
+        screenPreview.startPreview(displayID: appState.configuration.selectedDisplayID)
+    }
+
+    private func syncSelectedDisplay() {
+        let resolved = CaptureDisplayResolver.resolveID(
+            preferred: appState.configuration.selectedDisplayID,
+            available: screenPreview.displays.map(\.id),
+            main: CGMainDisplayID()
+        )
+        if appState.configuration.selectedDisplayID != resolved {
+            appState.configuration.selectedDisplayID = resolved
+        }
     }
 
     private func syncLiveWebcamBlurPreview() {
-        guard appState.configuration.includeCamera else {
-            coordinator.cameraManager.setBlurBackgroundEnabled(false)
-            return
-        }
-        coordinator.cameraManager.setBlurBackgroundEnabled(appState.configuration.blurBackgroundBehindWebcam)
+        let shouldBlur = appState.configuration.includeCamera
+            && appState.configuration.blurBackgroundBehindWebcam
+            && cameraManager.state != .idle
+        cameraManager.setBlurBackgroundEnabled(shouldBlur)
     }
 
     private var easemoBackground: some View {
@@ -73,19 +134,62 @@ struct RecordingView: View {
     }
 
     private var header: some View {
-        VStack(spacing: 6) {
+        HStack(spacing: 10) {
             Text("easemo")
-                .font(.system(size: 28, weight: .semibold))
+                .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(EasemoTheme.textPrimary)
             Text("Record. Compose. Ship demos faster.")
-                .font(.system(size: 14, weight: .regular))
+                .font(.system(size: 13, weight: .regular))
                 .foregroundStyle(EasemoTheme.textSecondary)
+            Spacer(minLength: 0)
         }
-        .multilineTextAlignment(.center)
+    }
+
+    private var screenPreviewCanvas: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: EasemoTheme.radiusPanel, style: .continuous)
+                .fill(Color.black.opacity(0.55))
+            ScreenPreviewView(manager: screenPreview)
+            if !screenPreview.hasFrame {
+                VStack(spacing: 10) {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(.white)
+                    Text(screenPreview.lastError ?? "Loading screen preview…")
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundStyle(EasemoTheme.textMuted)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 16)
+                }
+            }
+            cameraOverlay
+            if coordinator.isRecording {
+                RoundedRectangle(cornerRadius: EasemoTheme.radiusPanel, style: .continuous)
+                    .fill(Color.black.opacity(0.35))
+                Text("Recording selected screen")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(EasemoTheme.textPrimary)
+            }
+        }
+        .aspectRatio(previewAspect, contentMode: .fit)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .layoutPriority(1)
+        .clipShape(RoundedRectangle(cornerRadius: EasemoTheme.radiusPanel, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: EasemoTheme.radiusPanel, style: .continuous)
+                .stroke(EasemoTheme.panelBorder, lineWidth: 1)
+        )
+        .shadow(
+            color: EasemoTheme.panelShadow.color,
+            radius: EasemoTheme.panelShadow.radius,
+            x: EasemoTheme.panelShadow.x,
+            y: EasemoTheme.panelShadow.y
+        )
+        .accessibilityLabel("Screen preview")
     }
 
     private var recordStack: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 16) {
             recordControlButton
             recordingActionRow
         }
@@ -96,23 +200,23 @@ struct RecordingView: View {
             ZStack {
                 Circle()
                     .stroke(Color.white.opacity(0.12), lineWidth: 3)
-                    .frame(width: 112, height: 112)
+                    .frame(width: 88, height: 88)
                 Circle()
                     .fill(EasemoTheme.recordGlow.opacity(coordinator.isRecording ? 0.45 : 0.28))
-                    .frame(width: 104, height: 104)
+                    .frame(width: 80, height: 80)
                     .blur(radius: coordinator.isRecording ? 14 : 10)
                 Circle()
                     .fill(coordinator.isRecording ? EasemoTheme.recordRedDim : EasemoTheme.recordRed)
-                    .frame(width: 80, height: 80)
+                    .frame(width: 62, height: 62)
                     .shadow(color: EasemoTheme.recordGlow.opacity(0.9), radius: coordinator.isRecording ? 10 : 16, y: 0)
                 if coordinator.isRecording {
                     RoundedRectangle(cornerRadius: 5, style: .continuous)
                         .fill(Color.white.opacity(0.95))
-                        .frame(width: 26, height: 26)
+                        .frame(width: 20, height: 20)
                 } else {
                     Circle()
                         .fill(EasemoTheme.recordRed)
-                        .frame(width: 56, height: 56)
+                        .frame(width: 42, height: 42)
                         .overlay(
                             Circle()
                                 .stroke(Color.white.opacity(0.35), lineWidth: 1)
@@ -150,7 +254,10 @@ struct RecordingView: View {
                 }
             } else {
                 VStack(spacing: 8) {
-                    Button(action: { Task { await appState.startRecording() } }) {
+                    Button(action: {
+                        appState.markCaptureTransition(.preparing)
+                        Task { await appState.startRecording() }
+                    }) {
                         Text("Start Recording")
                             .font(.system(size: 15, weight: .medium))
                             .foregroundStyle(.white)
@@ -177,6 +284,18 @@ struct RecordingView: View {
 
     private var controlsPanel: some View {
         VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Screen")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(EasemoTheme.textMuted)
+                    .textCase(.uppercase)
+                    .tracking(0.6)
+                screenPicker
+            }
+
+            Divider()
+                .background(EasemoTheme.panelBorder)
+
             VStack(alignment: .leading, spacing: 10) {
                 Text("Inputs")
                     .font(.system(size: 12, weight: .semibold))
@@ -234,7 +353,7 @@ struct RecordingView: View {
                             .tint(EasemoTheme.accentPurple)
                     }
 
-                    Text("Drag the webcam preview to position it on the screen.")
+                    Text("Drag the webcam on the preview to position it on the recorded screen.")
                         .font(.system(size: 12, weight: .regular))
                         .foregroundStyle(EasemoTheme.textMuted)
                 }
@@ -242,7 +361,78 @@ struct RecordingView: View {
         }
         .padding(20)
         .easemoPanelStyle()
-        .frame(maxWidth: 560)
+        .frame(maxWidth: .infinity)
+    }
+
+    private var screenPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 12) {
+                Text("Record")
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundColor(EasemoTheme.textPrimary)
+                    .padding(.top, 8)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        ForcedLightLabel(
+                            text: selectedDisplay?.menuTitle ?? "Looking for displays…",
+                            font: .systemFont(ofSize: 13, weight: .medium)
+                        )
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(EasemoTheme.sliderTrackInactive)
+                    .clipShape(RoundedRectangle(cornerRadius: EasemoTheme.radiusInput, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: EasemoTheme.radiusInput, style: .continuous)
+                            .stroke(EasemoTheme.panelBorder, lineWidth: 1)
+                    )
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        guard !coordinator.isRecording, !screenPreview.displays.isEmpty else { return }
+                        isDisplayPickerOpen.toggle()
+                    }
+                    .opacity(coordinator.isRecording || screenPreview.displays.isEmpty ? 0.45 : 1)
+
+                    if isDisplayPickerOpen {
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(screenPreview.displays) { display in
+                                ForcedLightLabel(
+                                    text: display.menuTitle,
+                                    font: .systemFont(ofSize: 13, weight: .medium)
+                                )
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(
+                                    display.id == selectedDisplay?.id
+                                        ? EasemoTheme.accentPurple.opacity(0.35)
+                                        : Color.clear
+                                )
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    appState.configuration.selectedDisplayID = display.id
+                                    isDisplayPickerOpen = false
+                                }
+                            }
+                        }
+                        .background(EasemoTheme.bgPrimary)
+                        .clipShape(RoundedRectangle(cornerRadius: EasemoTheme.radiusInput, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: EasemoTheme.radiusInput, style: .continuous)
+                                .stroke(EasemoTheme.panelBorder, lineWidth: 1)
+                        )
+                    }
+                }
+            }
+            Text("Records the full selected display. Cropped regions (QuickTime’s area selection) are not available yet. Mission Control Spaces are not separate screens.")
+                .font(.system(size: 12, weight: .regular))
+                .foregroundColor(EasemoTheme.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private func shapeSegment(_ shape: OverlayShape) -> some View {
@@ -267,8 +457,10 @@ struct RecordingView: View {
                         }
                     }
                 )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .contentShape(Rectangle())
     }
 
     private func labeledToggle(title: String, isOn: Binding<Bool>) -> some View {
@@ -276,43 +468,52 @@ struct RecordingView: View {
             Text(title)
                 .font(.system(size: 14, weight: .regular))
                 .foregroundStyle(EasemoTheme.textPrimary)
-            Toggle(title, isOn: isOn)
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .tint(EasemoTheme.accentPurple)
+            FirstClickSwitch(isOn: isOn)
+                .frame(width: 38, height: 22)
         }
+        .accessibilityLabel(title)
+        .accessibilityValue(isOn.wrappedValue ? "On" : "Off")
+    }
+
+    private var isCameraOverlayShown: Bool {
+        appState.configuration.includeCamera
+            && appState.overlay.isVisible
+            && !coordinator.isRecording
     }
 
     @ViewBuilder
     private var cameraOverlay: some View {
-        if appState.configuration.includeCamera, appState.overlay.isVisible {
+        // Keep the preview layer mounted. Tearing it down on Webcam off leaves a black
+        // layer when the same running session is attached again.
+        if cameraReady {
             GeometryReader { proxy in
                 let canvas = proxy.size
                 let frame = appState.overlay.frame(in: canvas, cameraAspect: 16.0 / 9.0)
-                if appState.overlay.shape == .circle {
-                    AdaptiveCameraPreviewView(session: coordinator.cameraManager.session,
-                                              cameraManager: coordinator.cameraManager,
-                                              shape: appState.overlay.shape)
-                        .frame(width: frame.width, height: frame.height)
-                        .overlay(Circle().stroke(Color.white.opacity(0.35), lineWidth: 1.5))
-                        .position(x: frame.midX, y: frame.midY)
-                        .shadow(color: .black.opacity(0.45), radius: 16, y: 8)
-                        .gesture(overlayDragGesture(in: canvas, frame: frame))
-                } else {
-                    AdaptiveCameraPreviewView(session: coordinator.cameraManager.session,
-                                              cameraManager: coordinator.cameraManager,
-                                              shape: appState.overlay.shape)
-                        .frame(width: frame.width, height: frame.height)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: EasemoTheme.radiusInput, style: .continuous)
-                                .stroke(Color.white.opacity(0.35), lineWidth: 1.5)
-                        )
-                        .position(x: frame.midX, y: frame.midY)
-                        .shadow(color: .black.opacity(0.45), radius: 16, y: 8)
-                        .gesture(overlayDragGesture(in: canvas, frame: frame))
-                }
+                AdaptiveCameraPreviewView(session: cameraManager.session,
+                                          cameraManager: cameraManager,
+                                          shape: appState.overlay.shape)
+                    .frame(width: frame.width, height: frame.height)
+                    .overlay {
+                        if isCameraOverlayShown {
+                            overlayStroke
+                        }
+                    }
+                    .position(x: frame.midX, y: frame.midY)
+                    .shadow(color: .black.opacity(isCameraOverlayShown ? 0.45 : 0), radius: 10, y: 4)
+                    .gesture(overlayDragGesture(in: canvas, frame: frame))
             }
-            .ignoresSafeArea()
+            .opacity(isCameraOverlayShown ? 1 : 0)
+            .allowsHitTesting(isCameraOverlayShown)
+        }
+    }
+
+    @ViewBuilder
+    private var overlayStroke: some View {
+        if appState.overlay.shape == .circle {
+            Circle().stroke(Color.white.opacity(0.45), lineWidth: 1.5)
+        } else {
+            RoundedRectangle(cornerRadius: EasemoTheme.radiusInput, style: .continuous)
+                .stroke(Color.white.opacity(0.45), lineWidth: 1.5)
         }
     }
 
@@ -342,12 +543,84 @@ struct RecordingView: View {
     }
 
     private func onRecordButtonTapped() {
-        Task {
-            if coordinator.isRecording {
-                await appState.stopRecording()
-            } else {
-                await appState.startRecording()
-            }
+        if coordinator.isRecording {
+            appState.markCaptureTransition(.finishing)
+            Task { await appState.stopRecording() }
+        } else {
+            appState.markCaptureTransition(.preparing)
+            Task { await appState.startRecording() }
+        }
+    }
+}
+
+/// AppKit label so picker text stays white even when NSButton/Menu chrome forces a light appearance.
+private struct ForcedLightLabel: NSViewRepresentable {
+    var text: String
+    var font: NSFont
+    var color: NSColor = .white
+
+    func makeNSView(context: Context) -> NSTextField {
+        let field = NSTextField(labelWithString: text)
+        field.isEditable = false
+        field.isSelectable = false
+        field.isBezeled = false
+        field.drawsBackground = false
+        field.backgroundColor = .clear
+        field.lineBreakMode = .byTruncatingTail
+        field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        field.setContentHuggingPriority(.required, for: .vertical)
+        apply(to: field)
+        return field
+    }
+
+    func updateNSView(_ nsView: NSTextField, context: Context) {
+        apply(to: nsView)
+    }
+
+    private func apply(to field: NSTextField) {
+        field.stringValue = text
+        field.font = font
+        field.textColor = color
+        field.appearance = NSAppearance(named: .darkAqua)
+    }
+}
+
+/// Native switch that changes state even when its click also activates the app/window.
+private struct FirstClickSwitch: NSViewRepresentable {
+    @Binding var isOn: Bool
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(isOn: $isOn)
+    }
+
+    func makeNSView(context: Context) -> AcceptsFirstMouseSwitch {
+        let control = AcceptsFirstMouseSwitch()
+        control.target = context.coordinator
+        control.action = #selector(Coordinator.changed(_:))
+        control.controlSize = .small
+        return control
+    }
+
+    func updateNSView(_ nsView: AcceptsFirstMouseSwitch, context: Context) {
+        context.coordinator.isOn = $isOn
+        nsView.state = isOn ? .on : .off
+    }
+
+    final class Coordinator: NSObject {
+        var isOn: Binding<Bool>
+
+        init(isOn: Binding<Bool>) {
+            self.isOn = isOn
+        }
+
+        @objc func changed(_ sender: NSSwitch) {
+            isOn.wrappedValue = sender.state == .on
+        }
+    }
+
+    final class AcceptsFirstMouseSwitch: NSSwitch {
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+            true
         }
     }
 }

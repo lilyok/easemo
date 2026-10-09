@@ -14,9 +14,9 @@ enum WebcamBackgroundBlur {
         return request
     }()
 
-    private static let balancedSegmentationRequest: VNGeneratePersonSegmentationRequest = {
+    private static let liveSegmentationRequest: VNGeneratePersonSegmentationRequest = {
         let request = VNGeneratePersonSegmentationRequest()
-        request.qualityLevel = .balanced
+        request.qualityLevel = .fast
         request.outputPixelFormat = kCVPixelFormatType_OneComponent8
         return request
     }()
@@ -33,7 +33,7 @@ enum WebcamBackgroundBlur {
     static func applyLiveIfEnabled(_ enabled: Bool, base: CIImage, maxLongEdge: CGFloat? = 640) -> CIImage? {
         guard enabled else { return nil }
         let workBase = downscaledForLiveVisionInput(base, maxLongEdge: maxLongEdge)
-        return applySegmentationBlur(base: workBase, request: balancedSegmentationRequest)
+        return applySegmentationBlur(base: workBase, request: liveSegmentationRequest)
     }
 
     /// Scales `image` so its longer side is at most `maxLongEdge` when that cap is set and meaningful.

@@ -14,8 +14,9 @@ final class CameraLiveBackgroundBlurProcessor: NSObject {
     private var isBusy = false
     private var pendingPixelBuffer: CVPixelBuffer?
     private var lastProcessedTime: CFAbsoluteTime = 0
-    /// Minimum seconds between Vision runs (live preview is intentionally low FPS).
-    private let minInterval: CFAbsoluteTime = 1.0 / 12.0
+    /// Placement only needs a responsive preview, not camera-rate segmentation.
+    /// Export still uses the full-resolution accurate path.
+    private let minInterval: CFAbsoluteTime = 1.0 / 5.0
 
     private let onFrame: @MainActor (CVPixelBuffer) -> Void
 
@@ -46,13 +47,13 @@ final class CameraLiveBackgroundBlurProcessor: NSObject {
             defer { self.finishVisionPass() }
 
             let base = CIImage(cvPixelBuffer: bufferCopy)
-            guard let blurred = WebcamBackgroundBlur.applyLiveIfEnabled(true, base: base, maxLongEdge: 640) else { return }
+            guard let blurred = WebcamBackgroundBlur.applyLiveIfEnabled(true, base: base, maxLongEdge: 360) else { return }
 
             let extent = blurred.extent
             let w = max(2, Int(ceil(extent.width)))
             let h = max(2, Int(ceil(extent.height)))
 
-            var attrs: [String: Any] = [
+            let attrs: [String: Any] = [
                 kCVPixelBufferCGImageCompatibilityKey as String: true,
                 kCVPixelBufferCGBitmapContextCompatibilityKey as String: true,
                 kCVPixelBufferMetalCompatibilityKey as String: true

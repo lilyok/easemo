@@ -10,6 +10,14 @@ public enum AppRoute: Equatable {
     case editing(RecordingResult)
 }
 
+/// Full-window transition so setup never just vanishes or flashes back.
+public enum CaptureTransition: Equatable {
+    case none
+    case preparing
+    case finishing
+    case returning
+}
+
 /// Single source of truth for the running app.
 ///
 /// `AppState` owns the long-lived service objects (`CaptureSessionCoordinator`,
@@ -22,6 +30,7 @@ public enum AppRoute: Equatable {
 public final class AppState: ObservableObject {
 
     @Published public var route: AppRoute = .recording
+    @Published public var captureTransition: CaptureTransition = .none
 
     /// Capture configuration the user has set on the recording screen.
     @Published public var configuration: RecordingConfiguration = .init()
@@ -99,6 +108,7 @@ public final class AppState: ObservableObject {
                         cameraManager: self.coordinator.cameraManager,
                         blurWebcamBackground: self.configuration.blurBackgroundBehindWebcam,
                         overlay: self.overlay,
+                        displayID: self.configuration.selectedDisplayID,
                         onOverlayChanged: { [weak self] updatedOverlay in
                             guard let self = self else { return }
                             self.overlay = updatedOverlay
@@ -122,18 +132,57 @@ public final class AppState: ObservableObject {
 
     // MARK: Recording flow
 
-    public func startRecording() async {
-        do {
+    public func markCaptureTransition(_ transition: CaptureTransition) {
+        captureTransition = transition
+        if transition == .preparing {
             errorMessage = nil
             statusMessage = "Preparing…"
+        }
+        if transition == .finishing || transition == .returning {
+            statusMessage = ""
+        }
+    }
+
+    public func startRecording() async {
+        if captureTransition != .preparing {
+            markCaptureTransition(.preparing)
+        }
+        // Let SwiftUI paint the overlay before HUD/ScreenCaptureKit work.
+        await Task.yield()
+        try? await Task.sleep(nanoseconds: 32_000_000)
+        do {
+            recordingUIBridge.didStartRecording(
+                includeCamera: configuration.includeCamera,
+                cameraSession: coordinator.cameraManager.session,
+                cameraManager: coordinator.cameraManager,
+                blurWebcamBackground: configuration.blurBackgroundBehindWebcam,
+                overlay: overlay,
+                displayID: configuration.selectedDisplayID,
+                onOverlayChanged: { [weak self] updatedOverlay in
+                    guard let self = self else { return }
+                    self.overlay = updatedOverlay
+                }
+            )
             try await coordinator.start(configuration: configuration)
+            captureTransition = .none
+            recordingUIBridge.hideMainWindow()
         } catch {
+            captureTransition = .none
+            recordingUIBridge.didStopRecording()
+            recordingUIBridge.showMainWindow()
             errorMessage = error.localizedDescription
             statusMessage = ""
         }
     }
 
     public func stopRecording() async {
+        if captureTransition != .finishing {
+            markCaptureTransition(.finishing)
+        }
+        await Task.yield()
+        try? await Task.sleep(nanoseconds: 32_000_000)
+        recordingUIBridge.didStopRecording()
+        recordingUIBridge.showMainWindow()
         do {
             let result = try await coordinator.stop(finalOverlay: overlay)
             statusMessage = "Recording finished — \(Self.formatElapsed(result.duration.seconds))"
@@ -146,8 +195,12 @@ public final class AppState: ObservableObject {
             overlay = result.layout
             configuration.blurBackgroundBehindWebcam = result.blurBackgroundBehindWebcam
             route = .editing(result)
+            captureTransition = .none
         } catch {
+            captureTransition = .none
             errorMessage = error.localizedDescription
+            coordinator.screenPreview.startPreview(displayID: configuration.selectedDisplayID)
+            try? await coordinator.cameraManager.startPreview()
         }
     }
 
@@ -174,11 +227,45 @@ public final class AppState: ObservableObject {
     }
 
     public func backToRecording() {
-        route = .recording
         statusMessage = ""
         trimStartSeconds = 0
         trimEndSeconds = 0
         muteAudio = false
+        captureTransition = .returning
+        Task { await returnToSetup() }
+    }
+
+    private func returnToSetup() async {
+        // Mount setup behind the blocking transition before warming its previews.
+        route = .recording
+        await Task.yield()
+        try? await Task.sleep(nanoseconds: 32_000_000)
+
+        coordinator.screenPreview.refreshDisplays()
+        coordinator.screenPreview.startPreview(displayID: configuration.selectedDisplayID)
+        try? await coordinator.cameraManager.startPreview()
+        coordinator.cameraManager.setBlurBackgroundEnabled(
+            configuration.includeCamera && configuration.blurBackgroundBehindWebcam
+        )
+
+        // Keep the transition above setup until expensive preview initialization
+        // finishes, so the newly mounted controls never appear temporarily frozen.
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline {
+            let screenReady = coordinator.screenPreview.hasFrame
+            let cameraReady = coordinator.cameraManager.state == .preview
+            let blurReady = !configuration.includeCamera
+                || !configuration.blurBackgroundBehindWebcam
+                || coordinator.cameraManager.liveBlurPreviewPixelBuffer != nil
+            if screenReady && cameraReady && blurReady {
+                break
+            }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        recordingUIBridge.showMainWindow()
+        await recordingUIBridge.waitUntilMainWindowAcceptsInput()
+        captureTransition = .none
     }
 
     // MARK: Helpers
@@ -206,6 +293,7 @@ private final class RecordingUIBridge: NSObject {
     private var currentOverlay: OverlayLayout = .default
     private var cameraSession: AVCaptureSession?
     private weak var cameraManager: CameraManager?
+    private weak var mainWindow: NSWindow?
 
     func setStopAction(_ action: @escaping () -> Void) {
         stopAction = action
@@ -216,31 +304,61 @@ private final class RecordingUIBridge: NSObject {
                            cameraManager: CameraManager,
                            blurWebcamBackground: Bool,
                            overlay: OverlayLayout,
+                           displayID: UInt32?,
                            onOverlayChanged: @escaping (OverlayLayout) -> Void) {
         self.onOverlayChanged = onOverlayChanged
         self.currentOverlay = overlay
         self.cameraSession = cameraSession
         self.cameraManager = cameraManager
         cameraManager.setBlurBackgroundEnabled(blurWebcamBackground)
-        NSApplication.shared.windows.first(where: \.isVisible)?.miniaturize(nil)
         installStatusItem()
         if includeCamera {
             installFloatingPanel(session: cameraSession,
                                  cameraManager: cameraManager,
                                  overlay: overlay,
-                                 shape: overlay.shape)
+                                 shape: overlay.shape,
+                                 displayID: displayID)
+        }
+    }
+
+    func hideMainWindow() {
+        let window = NSApplication.shared.windows.first { candidate in
+            candidate.isVisible && !(candidate is NSPanel)
+        } ?? NSApplication.shared.windows.first { !($0 is NSPanel) }
+        mainWindow = window
+        window?.animationBehavior = .none
+        if window?.isMiniaturized == false {
+            window?.miniaturize(nil)
+        }
+        installStatusItem()
+    }
+
+    func showMainWindow() {
+        let window = mainWindow ?? NSApplication.shared.windows.first { !($0 is NSPanel) }
+        window?.animationBehavior = .none
+        window?.deminiaturize(nil)
+        window?.makeKeyAndOrderFront(nil)
+        window?.animationBehavior = .default
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        removeStatusItem()
+    }
+
+    func waitUntilMainWindowAcceptsInput() async {
+        let deadline = Date().addingTimeInterval(1)
+        while Date() < deadline {
+            let window = mainWindow ?? NSApplication.shared.windows.first { !($0 is NSPanel) }
+            if NSApplication.shared.isActive, window?.isKeyWindow == true {
+                return
+            }
+            NSApplication.shared.activate(ignoringOtherApps: true)
+            window?.makeKeyAndOrderFront(nil)
+            try? await Task.sleep(nanoseconds: 25_000_000)
         }
     }
 
     func didStopRecording() {
         cameraManager?.setBlurBackgroundEnabled(false)
-        removeStatusItem()
         removeFloatingPanel()
-        if let window = NSApplication.shared.windows.first {
-            window.deminiaturize(nil)
-            window.makeKeyAndOrderFront(nil)
-            NSApplication.shared.activate(ignoringOtherApps: true)
-        }
     }
 
     private func installStatusItem() {
@@ -261,9 +379,10 @@ private final class RecordingUIBridge: NSObject {
     private func installFloatingPanel(session: AVCaptureSession,
                                       cameraManager: CameraManager,
                                       overlay: OverlayLayout,
-                                      shape: OverlayShape) {
+                                      shape: OverlayShape,
+                                      displayID: UInt32?) {
         guard floatingPanel == nil else { return }
-        let screen = NSScreen.main ?? NSScreen.screens.first
+        let screen = screenForRecording(displayID: displayID)
         let visible = screen?.visibleFrame ?? CGRect(x: 100, y: 100, width: 1200, height: 800)
         // Use the same layout function as export so floating preview matches
         // resulting video size/placement as closely as possible.
@@ -393,6 +512,13 @@ private final class RecordingUIBridge: NSObject {
         )
     }
 
+    private func screenForRecording(displayID: UInt32?) -> NSScreen? {
+        if let displayID, let match = CaptureDisplay.nsScreen(forDisplayID: displayID) {
+            return match
+        }
+        return NSScreen.main ?? NSScreen.screens.first
+    }
+
     private func refreshFloatingPanelFrame() {
         guard let panel = floatingPanel else { return }
         let screen = panel.screen ?? NSScreen.main ?? NSScreen.screens.first
@@ -415,6 +541,22 @@ private struct FloatingRecorderHUD: View {
     /// `MagnificationGesture` reports cumulative scale since the gesture began; convert to per-update deltas for `onScale`.
     @State private var pinchBase: CGFloat = 1.0
 
+    private var recordingBadge: some View {
+        let live = cameraManager.state == .recording
+        return HStack(spacing: 6) {
+            Circle()
+                .fill(live ? EasemoTheme.recordRed : EasemoTheme.textMuted)
+                .frame(width: 8, height: 8)
+            Text(live ? "REC" : "Starting…")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.white)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.black.opacity(0.55))
+        .clipShape(Capsule())
+    }
+
     @ViewBuilder
     var body: some View {
         Group {
@@ -429,6 +571,10 @@ private struct FloatingRecorderHUD: View {
                                           shape: shape)
                     .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
+        }
+        .overlay(alignment: .topLeading) {
+            recordingBadge
+                .padding(8)
         }
         .background(Color.clear)
         .gesture(MagnificationGesture()

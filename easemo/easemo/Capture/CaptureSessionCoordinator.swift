@@ -38,6 +38,7 @@ public final class CaptureSessionCoordinator: ObservableObject {
     public let recordingManager: RecordingManager
     public let cameraManager: CameraManager
     public let audioManager: AudioRecordingManager
+    public let screenPreview: ScreenPreviewManager
 
     private var configuration: RecordingConfiguration = .init()
     private var timer: Timer?
@@ -49,16 +50,19 @@ public final class CaptureSessionCoordinator: ObservableObject {
     public convenience init() {
         self.init(recordingManager: RecordingManager(),
                   cameraManager: CameraManager(),
-                  audioManager: AudioRecordingManager())
+                  audioManager: AudioRecordingManager(),
+                  screenPreview: ScreenPreviewManager())
     }
 
     @MainActor
     public init(recordingManager: RecordingManager,
                 cameraManager: CameraManager,
-                audioManager: AudioRecordingManager) {
+                audioManager: AudioRecordingManager,
+                screenPreview: ScreenPreviewManager) {
         self.recordingManager = recordingManager
         self.cameraManager = cameraManager
         self.audioManager = audioManager
+        self.screenPreview = screenPreview
     }
 
     // MARK: Public API
@@ -71,6 +75,9 @@ public final class CaptureSessionCoordinator: ObservableObject {
 
         if configuration.includeCamera {
             try await cameraManager.startPreview()
+        } else {
+            // Setup keeps the camera warm; actually release it only for a no-webcam take.
+            await cameraManager.stopPreviewAndWait()
         }
         if configuration.includeMicrophone {
             // Audio prepare can fail on permission denied. Surface a warning
@@ -88,11 +95,22 @@ public final class CaptureSessionCoordinator: ObservableObject {
             OverlayLayoutKeyframe(timeSeconds: 0, layout: configuration.overlay)
         ]
 
+        screenPreview.stopPreview()
+
         // Start screen first because it tends to take longer (permission
         // dialog, content discovery). Once it is running, kick off the
         // camera/audio writers immediately so their start timestamps are
         // close to the screen's first frame.
-        _ = try await recordingManager.startRecording(frameRate: configuration.screenFrameRate)
+        do {
+            _ = try await recordingManager.startRecording(
+                frameRate: configuration.screenFrameRate,
+                displayID: configuration.selectedDisplayID
+            )
+        } catch {
+            screenPreview.startPreview(displayID: configuration.selectedDisplayID)
+            try? await cameraManager.startPreview()
+            throw error
+        }
         if configuration.includeCamera {
             _ = try cameraManager.startRecording(frameRate: configuration.cameraFrameRate)
         }

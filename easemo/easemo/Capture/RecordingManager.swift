@@ -1,5 +1,6 @@
 import AVFoundation
 import Combine
+import CoreGraphics
 import CoreMedia
 import Foundation
 #if canImport(ScreenCaptureKit)
@@ -75,11 +76,13 @@ public final class RecordingManager: NSObject, ObservableObject {
 
     // MARK: Public API
 
-    /// Begin recording the main display.
-    /// - Parameter frameRate: Target frames per second.
+    /// Begin recording the requested display, falling back to the main display.
+    /// - Parameters:
+    ///   - frameRate: Target frames per second.
+    ///   - displayID: Preferred `CGDirectDisplayID`. `nil` uses the main display.
     /// - Returns: The URL the screen recording is being written to.
     @discardableResult
-    public func startRecording(frameRate: Int = 30) async throws -> URL {
+    public func startRecording(frameRate: Int = 30, displayID: UInt32? = nil) async throws -> URL {
         guard state == .idle else { throw RecordingError.alreadyRunning }
         state = .preparing
         lastError = nil
@@ -88,31 +91,28 @@ public final class RecordingManager: NSObject, ObservableObject {
         do {
             let content = try await SCShareableContent.excludingDesktopWindows(false,
                                                                                onScreenWindowsOnly: true)
-            guard let display = content.displays.first else {
+            let availableIDs = content.displays.compactMap { display -> UInt32? in
+                guard CaptureDisplay.isSelectableCaptureTarget(
+                    displayID: display.displayID,
+                    width: display.width,
+                    height: display.height
+                ) else { return nil }
+                return display.displayID
+            }
+            let resolvedID = CaptureDisplayResolver.resolveID(
+                preferred: displayID,
+                available: availableIDs,
+                main: CGMainDisplayID()
+            )
+            guard let resolvedID,
+                  let display = content.displays.first(where: { $0.displayID == resolvedID }) else {
                 state = .idle
                 throw RecordingError.noDisplayAvailable
             }
 
-            // Exclude our own app entirely from screen capture whenever possible.
-            // Floating panels (PiP webcam) sometimes do not appear in `content.windows`
-            // with correct ownership — then excluding window IDs alone still records the
-            // PiP, and export composites the camera again → duplicated face in output.
-            let filter: SCContentFilter
-            if let bundleIdentifier = Bundle.main.bundleIdentifier,
-               let ownApp = content.applications.first(where: { $0.bundleIdentifier == bundleIdentifier }) {
-                filter = SCContentFilter(display: display,
-                                         excludingApplications: [ownApp],
-                                         exceptingWindows: [])
-            } else if let bundleIdentifier = Bundle.main.bundleIdentifier {
-                let ownWindows = content.windows.filter { window in
-                    window.owningApplication?.bundleIdentifier == bundleIdentifier
-                }
-                filter = SCContentFilter(display: display, excludingWindows: ownWindows)
-            } else {
-                filter = SCContentFilter(display: display, excludingWindows: [])
-            }
+            let filter = Self.makeContentFilter(display: display, content: content)
             let config = SCStreamConfiguration()
-            let scale = Int(NSScreen.main?.backingScaleFactor ?? 1)
+            let scale = Int(CaptureDisplay.backingScaleFactor(forDisplayID: display.displayID))
             config.width = display.width * scale
             config.height = display.height * scale
             config.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(frameRate))
@@ -215,6 +215,25 @@ public final class RecordingManager: NSObject, ObservableObject {
         throw RecordingError.underlying("ScreenCaptureKit unavailable.")
         #endif
     }
+
+    #if canImport(ScreenCaptureKit)
+    /// Exclude easemo itself so the PiP HUD is not baked into the screen track.
+    static func makeContentFilter(display: SCDisplay, content: SCShareableContent) -> SCContentFilter {
+        if let bundleIdentifier = Bundle.main.bundleIdentifier,
+           let ownApp = content.applications.first(where: { $0.bundleIdentifier == bundleIdentifier }) {
+            return SCContentFilter(display: display,
+                                   excludingApplications: [ownApp],
+                                   exceptingWindows: [])
+        }
+        if let bundleIdentifier = Bundle.main.bundleIdentifier {
+            let ownWindows = content.windows.filter { window in
+                window.owningApplication?.bundleIdentifier == bundleIdentifier
+            }
+            return SCContentFilter(display: display, excludingWindows: ownWindows)
+        }
+        return SCContentFilter(display: display, excludingWindows: [])
+    }
+    #endif
 }
 
 /// Lightweight weak holder used to bridge non-isolated callbacks back to the
