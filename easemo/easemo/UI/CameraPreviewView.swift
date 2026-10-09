@@ -1,6 +1,5 @@
 import AVFoundation
 import AppKit
-import CoreImage
 import CoreVideo
 import SwiftUI
 
@@ -12,21 +11,23 @@ struct CameraPreviewView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> PreviewNSView {
         let view = PreviewNSView()
-        view.previewLayer.session = session
-        view.previewLayer.videoGravity = .resizeAspectFill
+        view.intendedSession = session
         view.shape = shape
         return view
     }
 
     func updateNSView(_ nsView: PreviewNSView, context: Context) {
+        nsView.intendedSession = session
         nsView.shape = shape
-        nsView.needsLayout = true
     }
 
     final class PreviewNSView: NSView {
         let previewLayer = AVCaptureVideoPreviewLayer()
         /// Reused so fast resizes do not swap mask instances (avoids one-frame gaps vs. video).
         private let circleMaskLayer = CAShapeLayer()
+        var intendedSession: AVCaptureSession? {
+            didSet { attachSessionIfInWindow() }
+        }
         var shape: OverlayShape = .rectangle {
             didSet { needsLayout = true }
         }
@@ -37,11 +38,17 @@ struct CameraPreviewView: NSViewRepresentable {
             layer = CALayer()
             // Avoid black “slivers” when the mask and preview settle at different times during layout.
             layer?.backgroundColor = NSColor.clear.cgColor
+            previewLayer.videoGravity = .resizeAspectFill
             layer?.addSublayer(previewLayer)
             circleMaskLayer.fillColor = NSColor.white.cgColor
         }
 
         required init?(coder: NSCoder) { fatalError("init(coder:) not implemented") }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            attachSessionIfInWindow()
+        }
 
         override func layout() {
             super.layout()
@@ -65,6 +72,13 @@ struct CameraPreviewView: NSViewRepresentable {
             }
             CATransaction.commit()
         }
+
+        private func attachSessionIfInWindow() {
+            guard window != nil else { return }
+            if previewLayer.session !== intendedSession {
+                previewLayer.session = intendedSession
+            }
+        }
     }
 }
 
@@ -75,7 +89,9 @@ struct AdaptiveCameraPreviewView: View {
     var shape: OverlayShape
 
     var body: some View {
-        Group {
+        ZStack {
+            CameraPreviewView(session: session, shape: shape)
+                .opacity(cameraManager.blurBackgroundEnabled ? 0 : 1)
             if cameraManager.blurBackgroundEnabled {
                 ZStack {
                     if cameraManager.liveBlurPreviewPixelBuffer == nil {
@@ -87,8 +103,6 @@ struct AdaptiveCameraPreviewView: View {
                     CameraVisionPreviewView(cameraManager: cameraManager)
                 }
                 .clipShape(shape == .circle ? AnyShape(Circle()) : AnyShape(Rectangle()))
-            } else {
-                CameraPreviewView(session: session, shape: shape)
             }
         }
     }
@@ -120,7 +134,6 @@ private struct CameraVisionPreviewView: NSViewRepresentable {
     }
 
     final class VisionPreviewNSView: NSView {
-        private let ciContext = EasemoCIContext.shared
         var displayPixelBuffer: CVPixelBuffer? {
             didSet { refreshContents() }
         }
@@ -144,14 +157,12 @@ private struct CameraVisionPreviewView: NSViewRepresentable {
                 layer?.contents = nil
                 return
             }
-            let ci = CIImage(cvPixelBuffer: pb)
-            let extent = ci.extent.integral
-            guard extent.width > 1, extent.height > 1,
-                  let cg = ciContext.createCGImage(ci, from: extent) else {
-                layer?.contents = nil
-                return
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            if let surface = CVPixelBufferGetIOSurface(pb)?.takeUnretainedValue() {
+                layer?.contents = surface
             }
-            layer?.contents = cg
+            CATransaction.commit()
         }
     }
 }

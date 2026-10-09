@@ -40,6 +40,10 @@
 		A100000000000000000000FC /* CameraLiveBackgroundBlurProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000FC /* CameraLiveBackgroundBlurProcessor.swift */; };
 		A100000000000000000000FD /* EasemoCIContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000FD /* EasemoCIContext.swift */; };
 		A100000000000000000000FE /* WebcamBackgroundBlurTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000FE /* WebcamBackgroundBlurTests.swift */; };
+		A100000000000000000000F1 /* CaptureDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000F1 /* CaptureDisplay.swift */; };
+		A100000000000000000000F2 /* ScreenPreviewManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000F2 /* ScreenPreviewManager.swift */; };
+		A100000000000000000000F3 /* ScreenPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000F3 /* ScreenPreviewView.swift */; };
+		A100000000000000000000F4 /* CaptureDisplayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000000000000000000F4 /* CaptureDisplayTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -90,6 +94,10 @@
 		B100000000000000000000FC /* CameraLiveBackgroundBlurProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraLiveBackgroundBlurProcessor.swift; sourceTree = "<group>"; };
 		B100000000000000000000FD /* EasemoCIContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EasemoCIContext.swift; sourceTree = "<group>"; };
 		B100000000000000000000FE /* WebcamBackgroundBlurTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebcamBackgroundBlurTests.swift; sourceTree = "<group>"; };
+		B100000000000000000000F1 /* CaptureDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureDisplay.swift; sourceTree = "<group>"; };
+		B100000000000000000000F2 /* ScreenPreviewManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenPreviewManager.swift; sourceTree = "<group>"; };
+		B100000000000000000000F3 /* ScreenPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenPreviewView.swift; sourceTree = "<group>"; };
+		B100000000000000000000F4 /* CaptureDisplayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureDisplayTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -158,6 +166,7 @@
 			isa = PBXGroup;
 			children = (
 				B100000000000000000000A3 /* RecordingManager.swift */,
+				B100000000000000000000F2 /* ScreenPreviewManager.swift */,
 				B100000000000000000000A4 /* CameraManager.swift */,
 				B100000000000000000000FC /* CameraLiveBackgroundBlurProcessor.swift */,
 				B100000000000000000000A5 /* CaptureSessionCoordinator.swift */,
@@ -191,6 +200,7 @@
 			isa = PBXGroup;
 			children = (
 				B100000000000000000000A9 /* RecordingConfiguration.swift */,
+				B100000000000000000000F1 /* CaptureDisplay.swift */,
 				B100000000000000000000AA /* RecordingResult.swift */,
 				B100000000000000000000CD /* OverlayLayoutKeyframe.swift */,
 			);
@@ -200,6 +210,7 @@
 		G100000000000000000000G7 /* easemoTests */ = {
 			isa = PBXGroup;
 			children = (
+				B100000000000000000000F4 /* CaptureDisplayTests.swift */,
 				B100000000000000000000B1 /* OverlayLayoutTests.swift */,
 				B100000000000000000000B8 /* VideoComposerMotionInstructionTests.swift */,
 				B100000000000000000000B2 /* AppStateTests.swift */,
@@ -228,6 +239,7 @@
 				B100000000000000000000AC /* RecordingView.swift */,
 				B100000000000000000000AD /* EditingView.swift */,
 				B100000000000000000000AE /* CameraPreviewView.swift */,
+				B100000000000000000000F3 /* ScreenPreviewView.swift */,
 				B100000000000000000000B7 /* EasemoTheme.swift */,
 			);
 			path = UI;
@@ -353,6 +365,9 @@
 				A100000000000000000000A1 /* EasemoApp.swift in Sources */,
 				A100000000000000000000A2 /* AppState.swift in Sources */,
 				A100000000000000000000A3 /* RecordingManager.swift in Sources */,
+				A100000000000000000000F2 /* ScreenPreviewManager.swift in Sources */,
+				A100000000000000000000F1 /* CaptureDisplay.swift in Sources */,
+				A100000000000000000000F3 /* ScreenPreviewView.swift in Sources */,
 				A100000000000000000000A4 /* CameraManager.swift in Sources */,
 				A100000000000000000000FC /* CameraLiveBackgroundBlurProcessor.swift in Sources */,
 				A100000000000000000000A5 /* CaptureSessionCoordinator.swift in Sources */,
@@ -379,6 +394,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A100000000000000000000F4 /* CaptureDisplayTests.swift in Sources */,
 				A100000000000000000000B1 /* OverlayLayoutTests.swift in Sources */,
 				A100000000000000000000B8 /* VideoComposerMotionInstructionTests.swift in Sources */,
 				A100000000000000000000B2 /* AppStateTests.swift in Sources */,
@@ -528,7 +544,7 @@
 				CODE_SIGN_ENTITLEMENTS = easemo/Resources/easemo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"easemo/Preview Content\"";
 				DEVELOPMENT_TEAM = V3XY5R5N6T;
@@ -541,7 +557,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.easemo.easemo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -557,7 +573,7 @@
 				CODE_SIGN_ENTITLEMENTS = easemo/Resources/easemo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"easemo/Preview Content\"";
 				DEVELOPMENT_TEAM = V3XY5R5N6T;
@@ -570,7 +586,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.easemo.easemo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;

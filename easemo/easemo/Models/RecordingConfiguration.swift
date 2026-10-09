@@ -125,18 +125,22 @@ public struct RecordingConfiguration: Equatable {
     public var screenFrameRate: Int
     /// Target frame rate for the camera stream.
     public var cameraFrameRate: Int
+    /// Preferred display to capture (`CGDirectDisplayID`). `nil` uses the main display.
+    public var selectedDisplayID: UInt32?
 
     public init(includeCamera: Bool = true,
                 includeMicrophone: Bool = true,
                 overlay: OverlayLayout = .default,
                 blurBackgroundBehindWebcam: Bool = true,
                 screenFrameRate: Int = 30,
-                cameraFrameRate: Int = 30) {
+                cameraFrameRate: Int = 30,
+                selectedDisplayID: UInt32? = nil) {
         self.includeCamera = includeCamera
         self.includeMicrophone = includeMicrophone
         self.overlay = overlay
         self.blurBackgroundBehindWebcam = blurBackgroundBehindWebcam
         self.screenFrameRate = screenFrameRate
         self.cameraFrameRate = cameraFrameRate
+        self.selectedDisplayID = selectedDisplayID
     }
 }

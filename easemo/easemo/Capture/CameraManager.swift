@@ -43,11 +43,16 @@ public final class CameraManager: NSObject, ObservableObject {
     @Published public private(set) var blurBackgroundEnabled = false
     /// Latest blurred frame for live preview; nil until the first Vision pass completes.
     @Published public private(set) var liveBlurPreviewPixelBuffer: CVPixelBuffer?
+    /// Increments after each successful `startRunning` so the preview layer can reattach.
+    @Published public private(set) var previewEpoch: Int = 0
 
     /// Underlying capture session for SwiftUI preview.
     public let session = AVCaptureSession()
 
     private let sampleQueue = DispatchQueue(label: "easemo.camera.samples")
+    private let sessionQueue = DispatchQueue(label: "easemo.camera.session")
+    /// Serializes start/stop so a later start cannot run before an in-flight stop.
+    private var sessionOpChain: Task<Void, Never> = Task {}
     private var deviceInput: AVCaptureDeviceInput?
     private var videoOutput: AVCaptureVideoDataOutput?
     private let outputDirectory: URL
@@ -86,7 +91,32 @@ public final class CameraManager: NSObject, ObservableObject {
     /// Configure the capture session and start the live preview. Safe to call
     /// repeatedly — successive calls are no-ops once the session is wired.
     public func startPreview() async throws {
-        if state != .idle { return }
+        let previous = sessionOpChain
+        let operation = Task<Void, Error> { @MainActor in
+            await previous.value
+            try await self.performStartPreview()
+        }
+        sessionOpChain = Task { _ = try? await operation.value }
+        try await operation.value
+    }
+
+    public func stopPreview() {
+        Task { await stopPreviewAndWait() }
+    }
+
+    public func stopPreviewAndWait() async {
+        let previous = sessionOpChain
+        let operation = Task { @MainActor in
+            await previous.value
+            await self.performStopPreview()
+        }
+        sessionOpChain = Task { await operation.value }
+        await operation.value
+    }
+
+    private func performStartPreview() async throws {
+        guard state != .recording else { return }
+        if state == .preview { return }
 
         guard await requestAuthorization() else {
             lastError = .permissionDenied
@@ -104,21 +134,37 @@ public final class CameraManager: NSObject, ObservableObject {
             throw mapped
         }
 
-        await Task.detached { [session] in
-            session.startRunning()
-        }.value
+        let session = self.session
+        await withCheckedContinuation { continuation in
+            sessionQueue.async {
+                session.startRunning()
+                continuation.resume()
+            }
+        }
         state = .preview
+        previewEpoch += 1
     }
 
-    public func stopPreview() {
-        setBlurBackgroundEnabled(false)
-        guard session.isRunning else { return }
-        session.stopRunning()
-        if state == .preview { state = .idle }
+    private func performStopPreview() async {
+        guard state != .recording else { return }
+        if blurBackgroundEnabled {
+            blurBackgroundEnabled = false
+            liveBlurProcessorRef.value = nil
+            liveBlurPreviewPixelBuffer = nil
+        }
+        state = .idle
+        let session = self.session
+        await withCheckedContinuation { continuation in
+            sessionQueue.async {
+                session.stopRunning()
+                continuation.resume()
+            }
+        }
     }
 
     /// Enables or disables Vision-based background blur for **live** preview only (does not change the recorded camera file).
     public func setBlurBackgroundEnabled(_ enabled: Bool) {
+        guard blurBackgroundEnabled != enabled else { return }
         blurBackgroundEnabled = enabled
         if !enabled {
             liveBlurProcessorRef.value = nil
@@ -230,6 +276,7 @@ public final class CameraManager: NSObject, ObservableObject {
         }
         session.addOutput(output)
         self.videoOutput = output
+        output.connection(with: .video)?.isEnabled = true
 
         let dims = CMVideoFormatDescriptionGetDimensions(device.activeFormat.formatDescription)
         if dims.width > 0, dims.height > 0 {

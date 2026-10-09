@@ -303,6 +303,7 @@ struct EditingView: View {
             HStack(spacing: 12) {
                 Button {
                     lastExportedURL = nil
+                    appState.markCaptureTransition(.returning)
                     appState.backToRecording()
                 } label: {
                     Text("Discard")
